@@ -1,5 +1,5 @@
 {
-  "name": "dsh-regular-chat",
+  "name": "dsh-chat",
   "version": "0.1.0",
   "description": "Persistent regular chats with dedicated workspaces for patched DSH Web",
   "type": "module",
