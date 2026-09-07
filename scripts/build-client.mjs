@@ -1,6 +1,6 @@
 import { build } from 'esbuild'
 import { readFile } from 'node:fs/promises'
-const id = 'dsh-regular-chat'
+const { name: id } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
 await build({
   entryPoints: ['src/client/index.ts'], outfile: 'lib/client.js', bundle: true, platform: 'browser', format: 'cjs', jsx: 'automatic', target: 'es2022',
   external: ['react', 'react/jsx-runtime', '@deepseek-ai/cordis'],

@@ -1,13 +1,15 @@
 /** Boots the real CLI/profile/Loader with a keyless model and the packed external plugin. */
 import { spawn, execFileSync } from 'node:child_process'
 import { createServer } from 'node:net'
-import { mkdtemp, mkdir, writeFile, copyFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, copyFile, readFile } from 'node:fs/promises'
 import { createWriteStream } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 const root = fileURLToPath(new URL('..', import.meta.url))
+const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
+const tarball = `${pkg.name.replace(/^@/, '').replace('/', '-')}-${pkg.version}.tgz`
 const upstream = join(root, '.upstream')
 const home = await mkdtemp(join(tmpdir(), 'dsh-regular-chat-integration-'))
 const log = join(home, 'host.log')
@@ -22,7 +24,7 @@ if (process.env.DSH_PNPM_ENTRY) {
 }
 const cli = ['--import', 'tsx/esm', 'apps/cli/src/bin.ts']
 const runCli = args => execFileSync(process.execPath, [...cli, ...args], { cwd: upstream, env, stdio: 'inherit' })
-runCli(['plugin', '--profile', 'web', 'add', resolve(root, 'dsh-regular-chat-0.1.0.tgz')])
+runCli(['plugin', '--profile', 'web', 'add', resolve(root, tarball)])
 const profile = join(home, 'profiles/web')
 await build({ entryPoints: [join(root, 'tests/integration/model.ts')], outfile: join(profile, 'regular-chat-test-model.js'), bundle: true, platform: 'node', format: 'esm', external: ['@deepseek-ai/*'] })
 const patch = join(profile, 'regular-chat-test.patch.yml')
@@ -71,7 +73,7 @@ try {
   await start(['--patch', disabled])
   check('scripts/persistence-smoke.mjs')
   await stop()
-  runCli(['plugin', '--profile', 'web', 'remove', 'dsh-regular-chat'])
+  runCli(['plugin', '--profile', 'web', 'remove', pkg.name])
   await start()
   check('scripts/persistence-smoke.mjs')
   console.log('Restart, disable, and uninstall preserve standard history and files.')
