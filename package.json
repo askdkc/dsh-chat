@@ -1,6 +1,7 @@
 {
   "name": "@askdkc/dsh-chat",
   "version": "0.1.0",
+  "private": false,
   "description": "Persistent regular chats with dedicated workspaces for patched DSH Web",
   "type": "module",
   "license": "MIT",
