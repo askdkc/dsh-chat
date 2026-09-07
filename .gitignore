@@ -1,0 +1,8 @@
+node_modules/
+.upstream/
+lib/
+*.tgz
+coverage/
+.codex/
+.integration-home*/
+PLAN.md

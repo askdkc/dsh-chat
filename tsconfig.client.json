@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target": "ES2024", "module": "ESNext", "moduleResolution": "Bundler", "strict": true,
+    "skipLibCheck": true, "allowImportingTsExtensions": true, "declaration": true, "emitDeclarationOnly": true,
+    "jsx": "react-jsx", "lib": ["ES2024", "DOM", "DOM.Iterable"], "types": ["node", "react"], "noEmitOnError": true
+  },
+  "include": ["src/client/**/*.ts", "src/client/**/*.tsx", "src/shared/**/*.ts"]
+}

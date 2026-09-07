@@ -1,0 +1,11 @@
+- id: llm-deepseek
+  disabled: true
+- id: agent-default-model
+  config:
+    provider: regular-chat-test
+    model: local-test
+- id: session-title-llm
+  disabled: true
+- insert:
+    - id: regular-chat-test-model
+      name: ./regular-chat-test-model.js
