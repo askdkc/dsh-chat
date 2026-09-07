@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { ClientConnectionRpc } from '@deepseek-ai/dsh-client-connection/client'
 import { ChatError, type Intent, type ScopeRequest } from '../shared/protocol.ts'
-import { infoSchema, preparedSchema, statusSchema, commitSchema, failureSchema } from '../shared/schemas.ts'
+import { infoSchema, preparedSchema, statusSchema, commitSchema, failureSchema, groupSchema } from '../shared/schemas.ts'
 
 export function createApi(rpc: ClientConnectionRpc) {
   async function call<T>(method: string, payload: object, schema: z.ZodType<T>, signal: AbortSignal): Promise<T> {
@@ -21,6 +21,7 @@ export function createApi(rpc: ClientConnectionRpc) {
     return envelope.data.value
   }
   return {
+    group: (request: { scopeKey: string; title: string } | Record<string, never>, signal: AbortSignal) => call('group', request, groupSchema, signal),
     info: (signal: AbortSignal) => call('info', {}, infoSchema, signal),
     prepare: (intent: Intent, signal: AbortSignal) => call('prepare', intent, preparedSchema, signal),
     status: (request: ScopeRequest, signal: AbortSignal) => call('status', request, statusSchema, signal),

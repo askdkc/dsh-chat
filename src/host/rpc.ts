@@ -1,22 +1,28 @@
 import { z, ZodError } from 'zod'
 import { endpoints } from '../shared/protocol.ts'
-import { infoRequestSchema, prepareRequestSchema, scopeRequestSchema, infoSchema, preparedSchema, statusSchema, commitSchema } from '../shared/schemas.ts'
+import { infoRequestSchema, prepareRequestSchema, scopeRequestSchema, infoSchema, preparedSchema, statusSchema, commitSchema, groupRequestSchema, groupSchema } from '../shared/schemas.ts'
 import { ChatError, safeError } from './errors.ts'
 import type { ChatService } from './service.ts'
 import type { ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
 const envelopeSchema = z.strictObject({ type: z.literal('client-request'), rpcId: z.string().min(1).max(256), method: z.enum(endpoints), payload: z.unknown() })
 export const ownsEndpoint = (endpoint: string): boolean => endpoints.some(value => value === endpoint)
-export function dispatcher(service: Promise<ChatService>): ConnectionRpcHandler {
+type ServiceSource = Promise<ChatService> | (() => Promise<ChatService>)
+export function dispatcher(service: ServiceSource): ConnectionRpcHandler {
   return async (endpoint, payload, signal) => {
     try {
       signal.throwIfAborted()
+      if (endpoint === 'regular-chat/group') {
+        const input = groupRequestSchema.parse(payload)
+        const host = await (typeof service === 'function' ? service() : service)
+        return { ok: true, value: groupSchema.parse(await host.group(input)) }
+      }
       // Validate before initialization or resource operations; payloads cannot choose paths or IDs.
       if (endpoint === 'regular-chat/info') {
         infoRequestSchema.parse(payload)
-        return { ok: true, value: infoSchema.parse((await service).info()) }
+        return { ok: true, value: infoSchema.parse((await (typeof service === 'function' ? service() : service)).info()) }
       }
       const input = endpoint === 'regular-chat/prepare' ? prepareRequestSchema.parse(payload) : scopeRequestSchema.parse(payload)
-      const host = await service
+      const host = await (typeof service === 'function' ? service() : service)
       signal.throwIfAborted()
       if (endpoint === 'regular-chat/prepare') return { ok: true, value: preparedSchema.parse(await host.prepare(prepareRequestSchema.parse(input))) }
       if (endpoint === 'regular-chat/status') return { ok: true, value: statusSchema.parse(await host.status(input)) }
@@ -30,7 +36,7 @@ export function dispatcher(service: Promise<ChatService>): ConnectionRpcHandler 
 }
 
 /** Exact authenticated routes coexist with DSH's sole Gateway interceptor. */
-export function fetchDispatcher(endpoint: string, service: Promise<ChatService>) {
+export function fetchDispatcher(endpoint: string, service: ServiceSource) {
   const dispatch = dispatcher(service)
   return async (request: Request): Promise<Response> => {
     if (request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json') return new Response('application/json required', { status: 415 })

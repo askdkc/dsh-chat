@@ -12,6 +12,11 @@ function render(dictionary: typeof en, state: CreationState) {
   return renderToStaticMarkup(<RegularChatButton {...props} />)
 }
 for (const [language, dictionary] of Object.entries({ en, ja, zh })) {
+  it(`${language}: explains a writer lock without claiming a chat was partially created`, () => {
+    const html = render(dictionary, { phase: 'failed', pending: false, supported: true, error: 'writer-locked' })
+    expect(html).toContain(dictionary.writerLocked)
+    expect(html).not.toContain(dictionary.recoveryRequired)
+  })
   it(`${language}: exposes unsupported DSH instead of silently waiting for a slot`, () => {
     const html = render(dictionary, { phase: 'idle', pending: false, supported: false })
     expect(html).toContain('role="alert"')

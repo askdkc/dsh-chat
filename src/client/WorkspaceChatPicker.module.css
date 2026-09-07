@@ -1,0 +1,15 @@
+.dialog { color: var(--dsw-alias-label-primary, #eee); background: var(--dsw-alias-surface-primary, #242424); border: 1px solid #777; border-radius: 12px; padding: 20px; width: min(560px, calc(100vw - 32px)); max-height: 85vh; box-sizing: border-box; overflow: auto; font: 14px/1.5 system-ui, sans-serif; }
+.dialog::backdrop { background: #0008; }
+.dialog h2 { margin: 0 0 12px; font-size: 18px; }
+.dialog button, .dialog input { font: inherit; color: inherit; background: transparent; border: 1px solid #777; border-radius: 6px; padding: 6px 10px; }
+.dialog input { box-sizing: border-box; max-width: 100%; }
+.dialog button { cursor: pointer; }
+.dialog button:disabled { opacity: .5; cursor: default; }
+.dialog :focus-visible { outline: 2px solid #6d9cff; outline-offset: 2px; }
+.dialog button[aria-checked="true"] { border-color: #6d9cff; }
+.list { display: flex; flex-direction: column; gap: 4px; max-height: 30vh; overflow: auto; margin: 12px 0; }
+.list button { text-align: start; overflow-wrap: anywhere; }
+.row { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin: 12px 0; }
+.path { flex: 1; min-width: 120px; }
+.path input { width: 100%; }
+.error { color: #ffaaaa; overflow-wrap: anywhere; }

@@ -1,16 +1,18 @@
 import { randomUUID } from 'node:crypto'
-import { realpath } from 'node:fs/promises'
+import { realpath, readdir } from 'node:fs/promises'
+import { join } from 'node:path'
+import { z } from 'zod'
 import type { Workspace, WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionController } from '@deepseek-ai/dsh-api-session-controller'
 import type { CreationRecord, Intent, Prepared, ScopeRequest } from '../shared/protocol.ts'
 import { ChatError } from './errors.ts'
 import { ChatPaths } from './paths.ts'
-import { Journal } from './journal.ts'
+import { Journal, readJson, atomicJson } from './journal.ts'
 import { acquireOwner } from './owner-lock.ts'
 
 export interface HostServices {
-  workspaceRegistry: { create(path: string, title?: string): Promise<Workspace>; get(id: WorkspaceId): Workspace | undefined }
+  workspaceRegistry: { create(path: string, title?: string): Promise<Workspace>; get(id: WorkspaceId): Workspace | undefined; list(): readonly Workspace[] }
   sessionController: Pick<SessionController, 'inspect'>
 }
 export class ChatService {
@@ -31,6 +33,25 @@ export class ChatService {
   info() {
     if (this.closed) throw new ChatError('cancelled')
     return { protocolVersion: 1 as const, scopeKey: this.scopeKey, ready: true as const }
+  }
+  async group(request: { scopeKey: string; title: string } | Record<string, never> = {}) {
+    return this.run({ scopeKey: 'title' in request ? request.scopeKey : this.scopeKey, requestId: 'sidebar-group' }, async () => {
+    await this.paths.check()
+    const titlePath = join(this.paths.state, 'group.json')
+    if ('title' in request) await atomicJson(titlePath, { title: request.title })
+    const settings = await readJson(titlePath, z.strictObject({ title: z.string().min(1).max(200) }))
+    const paths = new Set<string>()
+    // Journal identity, not a display-name or path-prefix guess, establishes
+    // which real Workspace registrations belong in the presentation group.
+    for (const file of await readdir(this.paths.requests)) {
+      if (!/^[0-9a-f-]{36}\.json$/i.test(file)) continue
+      const record = await this.journal.read(file.slice(0, -5))
+      if (!record) continue
+      paths.add(join(this.paths.root, 'sessions', record.sessionId, 'workspace'))
+    }
+    return { scopeKey: this.scopeKey, title: settings?.title ?? 'Regular Chat',
+      workspaceIds: this.services.workspaceRegistry.list().filter(row => paths.has(row.path)).map(row => row.id as string) }
+    })
   }
   private run<T>(request: ScopeRequest, operation: () => Promise<T>): Promise<T> {
     if (this.closed) return Promise.reject(new ChatError('cancelled'))

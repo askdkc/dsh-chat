@@ -14,14 +14,15 @@ try {
     const page = await browser.newPage({ locale, viewport: { width: 1100, height: 850 } })
     const errors = []
     page.on('pageerror', error => errors.push(error.message))
+    // The testing notice can mount after the Hero. Handle it at actionability
+    // time instead of relying on a one-time count immediately after startup.
+    for (const name of [/^(Continue|继续)$/, /^(Configure later|稍后配置)$/]) {
+      await page.addLocatorHandler(page.getByRole('button', { name }), async button => { await button.click() })
+    }
     await page.goto(match[0])
     try {
       const button = page.getByRole('button', { name: label, exact: true })
       await button.waitFor({ timeout: 30000 })
-      const consent = page.getByRole('button', { name: /^(Continue|继续)$/ })
-      if (await consent.count()) await consent.click()
-      const later = page.getByRole('button', { name: /^(Configure later|稍后配置)$/ })
-      if (await later.count()) await later.click()
       const preparedResponse = page.waitForResponse(response => response.url().endsWith('/api/regular-chat/prepare'))
       const commitResponse = page.waitForResponse(response => response.url().endsWith('/api/regular-chat/commit'))
       const [pResponse, cResponse] = await Promise.all([preparedResponse, commitResponse, button.click()])

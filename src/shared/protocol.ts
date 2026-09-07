@@ -7,7 +7,7 @@ export type ScopeRequest = z.infer<typeof scopeRequestSchema>
 export type Prepared = z.infer<typeof preparedSchema>
 export type Info = z.infer<typeof infoSchema>
 export type ErrorCode = z.infer<typeof errorCodeSchema>
-export const endpoints = ['regular-chat/info', 'regular-chat/prepare', 'regular-chat/status', 'regular-chat/commit'] as const
+export const endpoints = ['regular-chat/info', 'regular-chat/prepare', 'regular-chat/status', 'regular-chat/commit', 'regular-chat/group'] as const
 export class ChatError extends Error {
   constructor(readonly code: ErrorCode) { super(code); this.name = 'ChatError' }
 }

@@ -23,6 +23,7 @@ async function bench() {
         rows.set(row.id, row); return row
       }),
       get: id => rows.get(id),
+      list: () => [...rows.values()],
     },
     sessionController: { inspect: vi.fn(async id => {
       if (!headers.has(id)) throw Error('missing')
@@ -41,6 +42,23 @@ async function bench() {
   }
 }
 describe('durable regular chat creation', () => {
+  it('groups only journal-owned registrations, retains independent cwd values, and respects deleted registrations', async () => {
+    const b = await bench()
+    const a = await b.service.prepare(b.intent()), c = await b.service.prepare(b.intent())
+    const unrelated = await b.services.workspaceRegistry.create(b.home, 'Regular Chat fake')
+    const before = await b.service.group()
+    expect(before.title).toBe('Regular Chat')
+    expect(before.workspaceIds.sort()).toEqual([a.workspaceId, c.workspaceId].sort())
+    expect(before.workspaceIds).not.toContain(unrelated.id)
+    expect(a.cwd).not.toBe(c.cwd)
+    await b.service.group({ scopeKey: b.service.scopeKey, title: 'Chats' })
+    await expect(b.service.group({ scopeKey: randomUUID(), title: 'Wrong host' })).rejects.toMatchObject({ code: 'scope-changed' })
+    b.rows.delete(a.workspaceId); b.rows.delete(c.workspaceId)
+    await b.restart()
+    expect(await b.service.group()).toMatchObject({ title: 'Chats', workspaceIds: [] })
+    expect(b.rows.has(unrelated.id)).toBe(true)
+    expect(b.services.workspaceRegistry.create).toHaveBeenCalledTimes(3)
+  })
   it('serializes duplicate requests and isolates distinct chats and generated files across restart', async () => {
     const b = await bench(), intent = b.intent()
     const prepared = await Promise.all(Array.from({ length: 20 }, () => b.service.prepare(intent)))

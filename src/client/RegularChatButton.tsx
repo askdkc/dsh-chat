@@ -12,11 +12,11 @@ export type ButtonInjected = {
   hooks: { creation: CreationController['creationState'] }
 }
 export type ButtonProps = InjectFace<ButtonInjected> & PropsLocale<'regular-chat'>
-export type HeroButtonProps = PropsRuntime<'conversation.hero.actions'> & ButtonProps
+export type HeroButtonProps = PropsRuntime<'conversation.hero.workspace'> & ButtonProps
 export type HeaderButtonProps = PropsRuntime<'conversation.session.header.actions'> & ButtonProps
 const errors: Record<ErrorCode, ChatKey> = {
   'invalid-request': 'recoveryRequired', 'protocol-mismatch': 'unsupported', 'scope-changed': 'scopeChanged',
-  'storage-unavailable': 'storageUnavailable', 'recovery-required': 'recoveryRequired', 'writer-locked': 'recoveryRequired',
+  'storage-unavailable': 'storageUnavailable', 'recovery-required': 'recoveryRequired', 'writer-locked': 'writerLocked',
   disconnected: 'disconnected', cancelled: 'disconnected', 'session-not-ready': 'disconnected',
 }
 export function RegularChatButton({ useCreation, start, retry, openCreated, label, t }: ButtonProps) {

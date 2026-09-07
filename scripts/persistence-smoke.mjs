@@ -27,8 +27,13 @@ try {
   await page.goto(url.href)
   await page.getByRole('tree').first().waitFor()
   const tree = page.getByRole('tree').first()
-  while (await tree.getByRole('treeitem', { expanded: false }).count()) await tree.getByRole('treeitem', { expanded: false }).first().click()
-  await tree.getByText('Integration test message', { exact: true }).first().waitFor()
+  // The plugin's authenticated grouping projection can arrive after the first
+  // Workspace baseline; expand the current rows again if their identity changes.
+  for (let attempt = 0; attempt < 10; attempt++) {
+    while (await tree.getByRole('treeitem', { expanded: false }).count()) await tree.getByRole('treeitem', { expanded: false }).first().click()
+    try { await tree.getByText('Integration test message', { exact: true }).first().waitFor({ timeout: 1000 }); break }
+    catch (error) { if (attempt === 9) throw error }
+  }
   for (let index = 0; index < created.length; index++) {
     await tree.getByText('Integration test message', { exact: true }).nth(index).click()
     await page.getByText('Regular chat integration response.', { exact: true }).waitFor()

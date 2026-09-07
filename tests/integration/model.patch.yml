@@ -6,6 +6,12 @@
     model: local-test
 - id: session-title-llm
   disabled: true
+- id: directory-picker
+  disabled: true
 - insert:
+    - id: regular-chat-test-directory-backend
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
+    - id: regular-chat-test-directory-ui
+      name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'
     - id: regular-chat-test-model
       name: ./regular-chat-test-model.js

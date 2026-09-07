@@ -1,44 +1,43 @@
-# Verification record — 2026-09-07
+# Verification record — plugin-only 0.1.1
 
-Target: DeepSeek Harness `d347e703908d0406b7a7ef80e3a0e594d86b2215`, source version `0.1.3-alpha.1`, patched by route A. Platform: macOS arm64, Node 26.5.0, pnpm 11.7.0. Browser: Playwright Chromium headless shell 149.0.7827.55. No real model API was called and no package was published.
+Target: unmodified DeepSeek Harness `d347e703908d0406b7a7ef80e3a0e594d86b2215` (source version `0.1.3-alpha.1`). Platform: macOS arm64, Node 26.5.0, pnpm 11.7.0, Playwright Chromium. DSH was rebuilt after removing the former Hero-actions patch. `verify-stock-dsh.mjs` compares the tracked source tree with the pinned upstream commit before package and integration checks.
 
 | Check | Result |
 | --- | --- |
-| Separate plugin Host / Client typecheck against built DSH declarations | Passed |
-| Plugin unit tests: journals, duplicate/retried creation, restart, attach failure, removed resources, symlinks, permissions, ENOSPC, strict schemas, client navigation, subscriptions, language ownership and UI states | 29 tests passed across 6 files |
-| DSH Conversation and Workspace suites | 40 files, 520 tests passed |
-| DSH Host and Client library build/typecheck and Web build | Passed; official build recorded 222 Client artifacts |
-| `gen-client-catalog` and `verify-client-catalog` | Passed; catalog generated, not manually edited |
-| `verify-client-ui-i18n` | Passed; 488 Client UI source files checked |
-| Patch applicability | Clean baseline application passed and reproduced all 7 tested files; reverse check also passed |
-| `verify:package` and `npm pack` | Passed: required exports/files, exact bundle patch, closure factory, shared React, Host-import exclusion, dependency and credential-pattern checks |
-| Real `dsh plugin --profile web add <tarball>` | Passed in fresh isolated DSH_HOME; Loader discovered Host and Client entries |
-| Real HTTP trust/auth | Authenticated info succeeded; missing/invalid cookie returned 401; forged Host and Origin returned 403; no request records created by rejected calls |
-| Workspace-zero central creation | Passed in the fresh integration home before any Workspace registration |
-| en / ja / zh central action | All passed: dedicated Workspace, standard bound Session, editable composer, standard streamed response using test provider |
-| en / ja / zh header action | All passed: New Regular Chat created a different cwd |
-| File separation | Three `result.md` files independently retained their expected contents |
-| Narrow 390px viewport | All three languages displayed localized storage errors and Retry preserved request ID; button stayed in viewport |
-| Live language switching during a pending error | en → ja → zh → en updated the visible error without another prepare request |
-| Browser JavaScript errors | None during successful creation/response/header flows |
-| Restart | Standard Session list, response history in Web UI, and all three generated files survived |
-| Plugin disable | The same standard history and files remained usable |
-| Plugin uninstall | Official CLI removed plugin; the same standard history and files remained usable |
+| Stock DSH source check and official build | Passed; no tracked DSH source changes, 222 Client artifacts |
+| Plugin Host / Client typecheck and build against stock declarations | Passed |
+| Unit tests | 43 passed across 10 files: persistent creation/retry/recovery, navigation, language ownership, button states, directory capability handling, killed-writer recovery initialization retries, owned Workspace grouping and persistent group naming |
+| Package verification | Passed: shared React, expected exports, no Host code in the browser, no dependency on the former Hero-actions slot, no DSH source patch in the payload |
+| Install the local implementation tarball through the standard DSH CLI | Passed in a temporary DSH_HOME, including upgrade from the earlier local build with existing per-chat Workspaces |
+| Prior local-build existing-project upgrade regression | Three ordinary project Workspaces registered before any regular chat; selected one, reproduced the earlier development build’s stale-lock error, installed the lock-recovery build, then created a dedicated chat and streamed a response |
+| Earlier local build to current grouping build | Existing per-chat Workspaces appeared in one Regular Chat sidebar group; history remained accessible |
+| Sidebar group actions | Rename persisted, group + created an independent cwd, ordinary Add/Delete still worked |
+| Group deletion | Native workspace/delete requests succeeded for the group members; history moved to Ungrouped, directories and result.md files remained after reload and Host restart |
+| Delivered build identity | Both installed Host/Client JS files matched the current build; the actual browser response contained the complete new Client bundle |
+| HTTP authentication / Host / Origin rejection | Passed; rejected calls created no request records |
+| Central Regular Chat with zero Workspaces | Passed on stock DSH |
+| English / Japanese / Chinese | Central action, standard bound Session, streamed test response and header action passed |
+| Per-chat storage | Distinct cwd values and independent result.md files verified |
+| 390px viewport and language switching | Localized errors and retry worked; request ID preserved; live locale changes created no extra request |
+| Existing Workspace selection | Current selection, switching, arrow/Home/End navigation, Escape, focus return and cancellation passed |
+| Regular Chat with an existing project selected | Dedicated Workspace ID and actual Session cwd passed commit verification; standard chat streamed a response, and the fixture marker was isolated from the selected project |
+| Host directory browsing | Actual Host list, hidden-folder filtering, folder creation and Workspace adoption passed in test-owned directories |
+| Failed directory read | Injected denial showed an error, recovered on retry and did not launch a native chooser |
+| Native picker capability | Explicit native response switched to the native RPC; simulated cancellation and selection passed |
+| Restart | Standard conversation history and generated files remained accessible |
+| Abrupt Host exit | Real CLI Host killed with SIGKILL; restart recovered the retained writer lock without changing storage identity, preserved history, and created a new chat with an existing project selected |
+| Lock recovery boundaries | One winner among 12 concurrent contenders; live writer, foreign hostname, denied process check, interrupted recovery and corrupt lock refused; legacy lock format recovered |
+| Disable and uninstall | Standard Workspace menu and Add workspace affordance returned; chat controls disappeared; histories and files remained accessible |
+| Browser JavaScript errors | None in the completed flows |
 
-The complete install/browser/restart/disable/uninstall sequence is reproducible with `npm run test:integration`. Test homes are printed and retained for inspection; the runner stops only its own Host. Its local model fixture is excluded from the npm package.
+The table includes the complete successful implementation run before the release-version correction. Run the same suite with `npm run test:integration`. The runner checks stock DSH, installs the actual tarball, creates a temporary profile, uses a deterministic local model, exercises SIGKILL/restart, and stops its own Host on completion. The profile composes DSH's stock browse backend for directory tests. Native results and denied reads are simulated at the public RPC boundary; tests never open an OS dialog. Default directory reads are redirected to a test-owned folder. Neither the user's DSH profile nor personal folders are inspected or modified by these tests.
 
-## Issues found and resolved during verification
+The release version is 0.1.1. This version-only correction was rebuilt and package-verified; integration tests were not rerun for this correction. On the preceding local build, the preserved-build replacement, grouping, deletion and history/file retention checks passed again. The subsequent full-suite run timed out at `scripts/browser-workspace-smoke.mjs:87` waiting for the selected `new-project` row; it did not complete, so the earlier full-suite pass must not be read as a new full-suite pass. These builds are local development artifacts; this verification did not publish to npm. The grouping upgrade used the preserved pre-grouping tarball and created its chats in an isolated test profile. The grouping-upgrade check used `DSH_TEST_GROUP_UPGRADE_FROM=/absolute/path/dsh-chat-before-grouping.tgz npm run test:integration`. Real user Workspaces, settings and conversations were not copied or modified. The earlier lock-recovery upgrade result above was verified with the previous local build. See [development](DEVELOPMENT.md) for build and browser prerequisites.
 
-- PLAN's second `/api` interceptor caused real Loader activation to fail. The implementation now uses four authenticated exact Fetch routes; see [implementation decisions](IMPLEMENTATION.md).
-- Node 26.5.0 with this machine's Corepack could not start pnpm (`ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`). Running the specified pnpm entry directly, with a test-local shim for nested invocations, completed the official build. This is an environment issue, not a product patch.
-- The local npm tried to enumerate a non-directory entry in the upstream workspace glob; `npm_config_workspaces=false` allowed the upstream scripts' nested npm commands to run.
-- Browser smoke testing caught a build-adapter JSX issue before final packaging. The browser build explicitly uses automatic JSX and requests the shared `react/jsx-runtime`.
-- Node's Fetch client did not send the forged Host as the test expected. The final trust test uses `node:http` for the Host-header case; the actual request returns 403.
+## Limits
 
-## Limits of the evidence
+The reported real-profile `workspace/delete ... Failed to fetch` has not been reproduced or established as fixed. The supplied server URL responded (HTTP 401 without authentication), and the authenticated browser loaded the existing sidebar. No real Workspace was deleted during diagnosis. Successful deletion in the isolated profile does not establish the cause of that transport failure.
 
-Not run: real provider/credential integration; real shell/model-generated file writes; Windows or Linux; an exhaustive abrupt-crash/power-loss matrix at every fsync/rename instruction; shared NFS; hostile same-user filesystem replacement races. Tests wrote their `result.md` fixtures directly into the cwd proven by the normal creation protocol. Live model calls are not required to run the integration suite.
+Not independently tested: an actual OS-native chooser, live in-process plugin reload while a native chooser is pending, real model providers or credentials, model-driven shell writes, Linux/Windows, shared NFS, exhaustive abrupt-crash/power-loss behavior, or hostile same-user filesystem replacement. Test result.md files are written by the fixture into cwd values returned by the normal creation protocol.
 
-Directory-picker-disabled composition and native fork/New Session/subagent exceptions are source-confirmed, not an independent full browser matrix. The plugin has no direct directory-picker dependency, but it does not promise to repair other DSH features when their required dependencies are disabled. The standard picker regression suite passed.
-
-Later third-party Japanese language packs must cooperate with DSH's single-registration catalog; this plugin preserves an existing registration and disposes only its own. It cannot prevent another plugin from unconditionally registering the same language ID.
+The fixed-priority replacement preserves the stock picker registration underneath it. Another plugin replacing the same slot can prevent this plugin from winning; it does not escalate priority. Later Japanese language packs must respect DSH's existing language registration. These boundaries are described in [implementation](IMPLEMENTATION.md).
