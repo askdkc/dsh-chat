@@ -1,4 +1,4 @@
-.dialog { color: var(--dsw-alias-label-primary, #eee); background: var(--dsw-alias-surface-primary, #242424); border: 1px solid #777; border-radius: 12px; padding: 20px; width: min(560px, calc(100vw - 32px)); max-height: 85vh; box-sizing: border-box; overflow: auto; font: 14px/1.5 system-ui, sans-serif; }
+.dialog { color: var(--dsw-alias-label-primary, CanvasText); background: var(--dsw-alias-bg-layer-2, Canvas); border: 1px solid #777; border-radius: 12px; padding: 20px; width: min(560px, calc(100vw - 32px)); max-height: 85vh; box-sizing: border-box; overflow: auto; font: 14px/1.5 system-ui, sans-serif; }
 .dialog::backdrop { background: #0008; }
 .dialog h2 { margin: 0 0 12px; font-size: 18px; }
 .dialog button, .dialog input { font: inherit; color: inherit; background: transparent; border: 1px solid #777; border-radius: 6px; padding: 6px 10px; }
@@ -12,4 +12,4 @@
 .row { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin: 12px 0; }
 .path { flex: 1; min-width: 120px; }
 .path input { width: 100%; }
-.error { color: #ffaaaa; overflow-wrap: anywhere; }
+.error { color: var(--dsw-alias-state-error-primary, #b91c1c); overflow-wrap: anywhere; }
