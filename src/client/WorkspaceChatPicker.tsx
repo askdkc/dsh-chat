@@ -57,8 +57,10 @@ export function WorkspaceChatPicker(props: PickerProps) {
   useEffect(() => {
     if (open) {
       setMode('workspaces'); setError(undefined); setLoading(false)
-      if (!dialog.current?.open) dialog.current?.showModal()
-      if (props.directoryOnly) void browse()
+      if (props.directoryOnly) {
+        dialog.current?.close()
+        void browse()
+      } else if (!dialog.current?.open) dialog.current?.showModal()
     } else {
       generation.current++; scan.current?.abort()
       locked.current = false; setBusy(false)
@@ -82,10 +84,14 @@ export function WorkspaceChatPicker(props: PickerProps) {
       const value = await props.listDirectory(target, controller.signal)
       if (controller.signal.aborted || current !== generation.current) return
       setListing(value); setPath(value.path)
+      if (!dialog.current?.open) dialog.current?.showModal()
     } catch (reason) {
       if (!controller.signal.aborted && current === generation.current) {
         if (reason instanceof NativeDirectoryPickerRequired) { setMode('workspaces'); native() }
-        else setError(String(reason instanceof Error ? reason.message : reason))
+        else {
+          setError(String(reason instanceof Error ? reason.message : reason))
+          if (!dialog.current?.open) dialog.current?.showModal()
+        }
       }
     } finally {
       if (!controller.signal.aborted && current === generation.current) setLoading(false)
@@ -97,7 +103,12 @@ export function WorkspaceChatPicker(props: PickerProps) {
     const epoch = generation.current
     const current = () => epoch === generation.current
     try { await operation(current) }
-    catch (reason) { if (current()) setError(String(reason instanceof Error ? reason.message : reason)) }
+    catch (reason) {
+      if (current()) {
+        setError(String(reason instanceof Error ? reason.message : reason))
+        if (!dialog.current?.open) dialog.current?.showModal()
+      }
+    }
     finally { if (current()) { locked.current = false; setBusy(false) } }
   }
   const adopt = async (directory: string, current: () => boolean) => {
@@ -116,6 +127,8 @@ export function WorkspaceChatPicker(props: PickerProps) {
     })
   }
   const native = () => {
+    // The OS chooser owns the visible selection UI until it settles.
+    dialog.current?.close()
     void mutate(async current => {
       const directory = await props.pickDirectory()
       if (directory !== null) await adopt(directory, current)

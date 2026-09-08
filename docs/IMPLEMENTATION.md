@@ -4,6 +4,8 @@ Version 0.1.1 is a plugin-only implementation on stock DSH commit `d347e703908d0
 
 The replacement uses public Workspace snapshots, `workspaces.create`, `remote.directoryPicker.list`, and `uiWorkspace` directory operations. An explicit `directory-picker/unavailable` response with `capability: native` selects the native chooser. Other errors remain visible and never silently open an OS dialog. Browse mode supports breadcrumbs, direct paths, hidden folders, new folders, errors and retries. A dialog contains focus and supports Escape; Workspace rows support arrow, Home and End keys. Mutations are serialized and late replies cannot select a Workspace after cancellation or unload.
 
+The sidebar Add action waits for directory capability detection before showing a web dialog. Native selection closes the web dialog and leaves the OS chooser as the only selection surface; cancellation closes the flow, while failures reopen the error surface. A successful browse response opens the web directory picker. The Hero's existing-workspace selection remains available, and its Add action also closes that dialog before native selection.
+
 The slot registration has a fixed priority; it does not escalate priority to compete with other plugins. When a different occupant wins, chat creation becomes unavailable. Disposing the plugin registration restores DSH's original picker and its directory-flow children. `cordis.patch.yml` is a standard DSH plugin configuration layer, not a patch to DSH source.
 
 ## Corrections to the plan verified against the pinned source

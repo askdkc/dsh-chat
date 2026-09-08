@@ -110,6 +110,7 @@ try {
   check('scripts/browser-error-smoke.mjs')
   check('scripts/browser-locale-smoke.mjs')
   check('scripts/browser-workspace-smoke.mjs')
+  check('scripts/browser-native-picker-smoke.mjs')
   const ownerPath = join(home, 'chat/state/owner.json')
   const lockPath = join(home, 'chat/state/writer.lock/owner.json')
   const ownerBeforeCrash = await readFile(ownerPath, 'utf8')
