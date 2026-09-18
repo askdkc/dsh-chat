@@ -41,10 +41,17 @@ try {
     await page.addLocatorHandler(page.getByRole('button', { name }), async button => { await button.click() })
   }
   await page.goto(url)
+  // This suite follows seeded chats. Let DSH restore its main Session before
+  // opening a picker; a later navigation correctly cancels an open picker.
+  await page.getByRole('treeitem', { selected: true }).first().waitFor()
   const sidebarAdd = page.getByRole('button', { name: 'Add workspace', exact: true })
   await sidebarAdd.waitFor()
   const openNative = async (open, sidebar) => {
     const listing = nextList(), picking = nextPick()
+    // Both waits start before the click. Observe early rejection while awaiting
+    // the other request; the original promises below still fail the test.
+    void listing.catch(() => {})
+    void picking.catch(() => {})
     await open()
     const listRoute = await listing
     // Check before capability detection settles, so a transient popup is a failure too.

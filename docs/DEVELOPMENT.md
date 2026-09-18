@@ -24,6 +24,21 @@ The browser integration runner uses an isolated DSH home, a local test model, an
 
 See [verification](VERIFICATION.md) for the tested scope. Production consumers install the built npm package and do not need this checkout.
 
+To also verify the Session ownership/navigation API in DSH `0.1.6-alpha.2`, keep the original checkout and add an isolated stock worktree:
+
+```sh
+git -C .upstream fetch origin ddefc45fbc7f8e46dd73185e68295696d1297887
+git -C .upstream worktree add --detach .regular-chat/alpha ddefc45fbc7f8e46dd73185e68295696d1297887
+(cd .upstream/.regular-chat/alpha && pnpm install --frozen-lockfile && pnpm run build)
+DSH_UPSTREAM=.upstream/.regular-chat/alpha npm run typecheck
+npm run build
+npm run verify:package
+npm pack
+DSH_UPSTREAM=.upstream/.regular-chat/alpha npm run test:integration
+```
+
+The same plugin bundle supports both pinned versions. `DSH_UPSTREAM` selects the type/build or integration target; the browser test driver still uses Playwright and its browser from the original `.upstream` setup. The stock-source guard accepts only the two pinned commits and rejects tracked source edits. For a broken Corepack shim, invoke the installed pnpm entry point directly and pass its absolute path as `DSH_PNPM_ENTRY` to the integration runner; no global configuration change is needed.
+
 To test an upgrade, supply a tarball containing the previous version:
 
 ```sh

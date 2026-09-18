@@ -14,6 +14,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { CreationController } from './controller.ts'
+import { sessionAccess } from './session-access.ts'
 import { createApi } from './rpc.ts'
 import { registerJapanese } from './language.ts'
 import { RegularChatButton, type ButtonInjected } from './RegularChatButton.tsx'
@@ -26,7 +27,7 @@ import type { WorkspaceBrowserInjected } from '@deepseek-ai/dsh-client-ui-worksp
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap { 'regular-chat': ChatKey }
 }
-export const inject = ['slots', 'locale', 'connection', 'sessions', 'workspaces', 'uiWorkspace', 'remote', 'remote.directoryPicker']
+export const inject = ['slots', 'locale', 'connection', 'sessions', 'workspaces', 'uiWorkspace', 'layout', 'remote', 'remote.directoryPicker']
 /** Both surfaces share one intent and one navigation owner for this client lifetime. */
 export function apply(ctx: Context): void {
   ctx.effect(() => {
@@ -45,7 +46,7 @@ export function apply(ctx: Context): void {
   ctx.effect(() => () => grouping.dispose(), 'regular-chat: grouping')
   ctx.on('connection/reset', grouping.reset)
   void grouping.refresh()
-  const controller = new CreationController(api, ctx.sessions, ctx.workspaces.list, () => {
+  const controller = new CreationController(api, sessionAccess(ctx.sessions, ctx.uiWorkspace, ctx.layout), ctx.workspaces.list, () => {
     const language = ctx.locale.getSnapshot().active.split('-')[0]
     return language === 'ja' || language === 'zh' ? language : 'en'
   }, {

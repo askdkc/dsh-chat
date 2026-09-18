@@ -1,6 +1,6 @@
 # Implementation decisions
 
-Version 0.1.1 is a plugin-only implementation on stock DSH commit `d347e703908d0406b7a7ef80e3a0e594d86b2215`. It registers into the existing root-scoped `conversation.hero.workspace` single slot at priority -100. The parent Workspace chip and its `open`, `selectedId`, `onPick`, and `onClose` contract remain intact. The plugin displays the Regular Chat button and a Workspace selection dialog; it does not import the private DSH picker, redeclare its directory-flow children, alter DSH source, or insert UI through DOM manipulation.
+The plugin supports stock DSH commits `d347e703908d0406b7a7ef80e3a0e594d86b2215` and `ddefc45fbc7f8e46dd73185e68295696d1297887` (`0.1.6-alpha.2`). It registers into the existing root-scoped `conversation.hero.workspace` single slot at priority -100. The parent Workspace chip and its `open`, `selectedId`, `onPick`, and `onClose` contract remain intact. The plugin displays the Regular Chat button and a Workspace selection dialog; it does not import the private DSH picker, redeclare its directory-flow children, alter DSH source, or insert UI through DOM manipulation.
 
 The replacement uses public Workspace snapshots, `workspaces.create`, `remote.directoryPicker.list`, and `uiWorkspace` directory operations. An explicit `directory-picker/unavailable` response with `capability: native` selects the native chooser. Other errors remain visible and never silently open an OS dialog. Browse mode supports breadcrumbs, direct paths, hidden folders, new folders, errors and retries. A dialog contains focus and supports Escape; Workspace rows support arrow, Home and End keys. Mutations are serialized and late replies cannot select a Workspace after cancellation or unload.
 
@@ -27,6 +27,8 @@ On local storage, a writer lock whose process is confirmed absent (`ESRCH`) can 
 The central Regular Chat action explicitly supplies the dedicated Workspace ID to DSH's standard Session creation API. An existing project selection does not override this ID. The ordinary DSH New Session action still follows DSH's own Workspace behavior.
 
 The client saves intent before prepare, uses one coordinator across all surfaces, waits for both Workspace and membership snapshots, and opens only an addressable standard binding. A navigation generation detects moving away and back. RPC cancellation retains intent because it does not prove that the server made no changes. Standard `sessions.create()` has no cancellation parameter; its late completion cannot navigate after disposal.
+
+DSH `0.1.6-alpha.2` makes `sessions.create()` return a catalog identity without allocating a binding. The compatibility adapter acquires a `controllerOperation` reference, waits for its readiness, commits the original request, and opens through `uiWorkspace.openSession()`. It releases the temporary reference on success, failure, and cancellation; the main view owns its own reference. Navigation uses `layout.beginNavigation()` and the `mainView` retention source, so later navigation wins. Older DSH continues to use `sessions.binding()`, `sessions.open()`, and `list.current`. A partial mixture of the two APIs is rejected. Neither path changes stored request/session identities or requires a storage migration.
 
 ## Scope of automatic checks
 

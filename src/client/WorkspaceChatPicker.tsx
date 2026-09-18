@@ -7,6 +7,7 @@ import type { UiWorkspace } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { RegularChatButton, type ButtonInjected } from './RegularChatButton.tsx'
 import css from './WorkspaceChatPicker.module.css'
 import { NativeDirectoryPickerRequired } from './directory.ts'
+import { currentSession } from './session-access.ts'
 
 export type PickerInjected = Omit<ButtonInjected, 'hooks'> & {
   hooks: ButtonInjected['hooks'] & { workspaceNavigation: ISessions['list'] }
@@ -26,7 +27,7 @@ export type PickerProps = PropsRuntime<'conversation.hero.workspace'> & PropsLoc
 export function WorkspaceChatPicker(props: PickerProps) {
   const { open, onClose, onPick, selectedId, useWorkspaces, t } = props
   const snapshot = useWorkspaces(state => state)
-  const navigation = props.useWorkspaceNavigation(state => state.current)
+  const navigation = props.useWorkspaceNavigation(currentSession)
   const previousNavigation = useRef(navigation)
   const dialog = useRef<HTMLDialogElement>(null)
   const titleId = useId()

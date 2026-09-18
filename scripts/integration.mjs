@@ -5,13 +5,13 @@ import { mkdtemp, mkdir, writeFile, copyFile, readFile } from 'node:fs/promises'
 import { createWriteStream } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 const root = fileURLToPath(new URL('..', import.meta.url))
 const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
 const tarball = `${pkg.name.replace(/^@/, '').replace('/', '-')}-${pkg.version}.tgz`
-const upstream = join(root, '.upstream')
+const upstream = resolve(root, process.env.DSH_UPSTREAM ?? '.upstream')
 execFileSync(process.execPath, [join(root, 'scripts/verify-stock-dsh.mjs')], { cwd: root, stdio: 'inherit' })
 const home = await mkdtemp(join(tmpdir(), 'dsh-regular-chat-integration-'))
 const log = join(home, 'host.log')
@@ -32,7 +32,15 @@ assert(!(upgradeFrom && groupUpgradeFrom), 'Choose one upgrade scenario per run'
 const previousPackage = upgradeFrom ?? groupUpgradeFrom
 runCli(['plugin', '--profile', 'web', 'add', previousPackage ? resolve(previousPackage) : resolve(root, tarball)])
 const profile = join(home, 'profiles/web')
-await build({ entryPoints: [join(root, 'tests/integration/model.ts')], outfile: join(profile, 'regular-chat-test-model.js'), bundle: true, platform: 'node', format: 'esm', external: ['@deepseek-ai/*'] })
+await build({ entryPoints: [join(root, 'tests/integration/model.ts')], outfile: join(profile, 'regular-chat-test-model.mjs'), bundle: true, platform: 'node', format: 'esm', external: ['@deepseek-ai/*'],
+  // The loose test fixture is outside a package. New DSH runtime resolution
+  // no longer supplies its undeclared bare imports via profile fallbacks.
+  plugins: [{ name: 'test-model-runtime', setup(builder) {
+    builder.onResolve({ filter: /^@deepseek-ai\/dsh-llm$/ }, () => ({
+      path: pathToFileURL(join(upstream, 'packages/llm/llm/lib/index.js')).href, external: true,
+    }))
+  } }],
+})
 const patch = join(profile, 'regular-chat-test.patch.yml')
 await copyFile(join(root, 'tests/integration/model.patch.yml'), patch)
 const server = createServer()

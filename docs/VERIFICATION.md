@@ -38,6 +38,20 @@ The release version is 0.1.1. This version-only correction was rebuilt and packa
 
 The local 0.1.2 build was installed into a fresh temporary DSH profile on the pinned stock source above. Both installed JavaScript bundles matched the local build. A focused run of `scripts/browser-native-picker-smoke.mjs` passed: no sidebar web dialog while capability detection or native selection is pending, cancellation and reopening, actual Workspace adoption of a test-owned directory, visible native failure recovery, Hero Add closing its dialog, actual Host browsing, and visible denied-listing errors. Native RPC outcomes were held and simulated; no OS chooser or personal directory was opened. Client unit tests passed (25 tests), as did typecheck, build and package verification. The full integration suite was not rerun; its runner now includes the new browser regression.
 
+## DSH 0.1.6-alpha.2 compatibility (2026-09-18)
+
+The local compatibility build was verified against unmodified DSH `ddefc45fbc7f8e46dd73185e68295696d1297887` (`0.1.6-alpha.2`) and the original `d347e703908d0406b7a7ef80e3a0e594d86b2215` checkout. The alpha was installed and built in a separate worktree; no real DSH profile was used.
+
+The original tracked controller reproduced `recovery-required` after a successful catalog-only `sessions.create()`, before commit. Upstream commit `6830e1460d` changed binding ownership and removed Session-controller navigation. The adapter now retains an explicit reference and opens through the Workspace UI owner, while preserving the older API path.
+
+- `npm test`: 52 tests passed, including new reference cleanup, mismatched identity rejection, same-ID retry, later navigation, unload, and failed-open recovery cases.
+- `npm run typecheck` and `DSH_UPSTREAM=.upstream/.regular-chat/alpha npm run typecheck`: passed against both stock declaration sets.
+- `npm run build` and `npm run verify:package`: passed; the local tarball contains the compatibility adapter and layout dependency declaration.
+- `npm run test:integration`: full suite passed on the older DSH with the final plugin code.
+- `DSH_UPSTREAM=.upstream/.regular-chat/alpha npm run test:integration`: full suite passed on the exact alpha. This includes English/Japanese/Chinese creation and streaming, existing-project isolation, retry, keyboard/directory controls, native-picker simulations, SIGKILL recovery, grouping/deletion, restart, disable/uninstall, and preserved history/files.
+
+The integration fixture now declares ESM with `.mjs` and resolves its test-only LLM import against the selected runtime. The native-picker test waits for DSH's initial main-session restoration before opening a picker. These changes adapt the verifier to the new loader and navigation lifecycle. The package remains a local, unpublished build; the user's installed plugin and active browser were not modified or verified.
+
 ## Limits
 
 The reported real-profile `workspace/delete ... Failed to fetch` has not been reproduced or established as fixed. The supplied server URL responded (HTTP 401 without authentication), and the authenticated browser loaded the existing sidebar. No real Workspace was deleted during diagnosis. Successful deletion in the isolated profile does not establish the cause of that transport failure.

@@ -1,4 +1,3 @@
-import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { WorkspaceSource } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
@@ -6,6 +5,7 @@ import { ChatError, type ErrorCode, type Intent, type Locale } from '../shared/p
 import { intentSchema } from '../shared/schemas.ts'
 import type { ChatApi } from './rpc.ts'
 import { waitForWorkspace } from './readiness.ts'
+import { currentSession, type CreationSessions } from './session-access.ts'
 
 export interface CreationState {
   phase: 'idle' | 'creating' | 'synchronizing' | 'failed' | 'ready'
@@ -30,14 +30,14 @@ export class CreationController {
   }
   constructor(
     private readonly api: ChatApi,
-    private readonly sessions: Pick<ISessions, 'list' | 'create' | 'open' | 'binding' | 'refresh'>,
+    private readonly sessions: CreationSessions,
     private readonly workspaces: WorkspaceSource,
     private readonly locale: () => Locale,
     private readonly storage: IntentStorage,
   ) {
-    let current = sessions.list.getSnapshot().current
+    let current = currentSession(sessions.list.getSnapshot())
     this.unsubscribe = sessions.list.subscribe(() => {
-      const next = sessions.list.getSnapshot().current
+      const next = currentSession(sessions.list.getSnapshot())
       if (next !== current) { current = next; this.navigationEpoch++ }
     })
     try {
@@ -75,8 +75,10 @@ export class CreationController {
   private async execute(retry: boolean): Promise<void> {
     const epoch = this.navigationEpoch
     const signal = AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(60000)])
+    let release: (() => void) | undefined
     this.publish({ phase: 'creating', error: undefined, openSessionId: undefined })
     try {
+      const navigation = this.sessions.beginNavigation?.()
       const info = await this.api.info(signal)
       signal.throwIfAborted()
       if (this.intent && this.intent.scopeKey !== info.scopeKey) throw new ChatError('scope-changed')
@@ -96,7 +98,9 @@ export class CreationController {
       await waitForWorkspace(this.workspaces, prepared, signal)
       const sessionId = await this.sessions.create({ workspaceId: prepared.workspaceId as WorkspaceId, sessionId: prepared.sessionId as SessionId })
       signal.throwIfAborted()
-      if (sessionId !== prepared.sessionId || !this.sessions.binding(sessionId)) throw new ChatError('recovery-required')
+      if (sessionId !== prepared.sessionId) throw new ChatError('recovery-required')
+      release = await this.sessions.acquire(sessionId, signal)
+      signal.throwIfAborted()
       const committed = await this.api.commit(request, signal)
       if (committed.sessionId !== prepared.sessionId || committed.workspaceId !== prepared.workspaceId || committed.cwd !== prepared.cwd) throw new ChatError('protocol-mismatch')
       await waitForWorkspace(this.workspaces, prepared, signal, true)
@@ -105,18 +109,21 @@ export class CreationController {
       this.storage.removeItem(STORAGE_KEY)
       this.intent = undefined
       this.publish({ phase: 'ready', pending: false, error: undefined, openSessionId: sessionId })
-      if (epoch === this.navigationEpoch) this.openCreated()
+      if (epoch === this.navigationEpoch && !navigation?.aborted) this.openCreated()
     } catch (error) {
       this.publish({ phase: 'failed', pending: this.intent !== undefined || this.state.pending,
         error: error instanceof ChatError ? error.code : 'disconnected' })
-    }
+    } finally { release?.() }
   }
   openCreated(): void {
     const id = this.state.openSessionId as SessionId | undefined
     if (!id || this.lifetime.signal.aborted) return
-    if (!this.sessions.binding(id)) { this.publish({ phase: 'failed', error: 'recovery-required' }); return }
-    this.sessions.open(id)
-    this.publish({ openSessionId: undefined })
+    try {
+      this.sessions.open(id)
+      this.publish({ phase: 'ready', error: undefined, openSessionId: undefined })
+    } catch (error) {
+      this.publish({ phase: 'failed', error: error instanceof ChatError ? error.code : 'disconnected' })
+    }
   }
   dispose(): void { this.lifetime.abort(); this.unsubscribe(); this.listeners.clear() }
 }
