@@ -9,7 +9,7 @@
 在 DSH 仓库根目录执行：
 
 ```sh
-pnpm dsh plugin --profile web add @askdkc/dsh-chat
+pnpm dsh plugin --profile web add @askdkc/dsh-chat@latest
 ```
 
 0.1.1 及后续版本无需修改 DSH 本体或应用补丁。

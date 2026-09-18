@@ -10,13 +10,17 @@ import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 const root = fileURLToPath(new URL('..', import.meta.url))
 const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
-const tarball = `${pkg.name.replace(/^@/, '').replace('/', '-')}-${pkg.version}.tgz`
 const upstream = resolve(root, process.env.DSH_UPSTREAM ?? '.upstream')
 execFileSync(process.execPath, [join(root, 'scripts/verify-stock-dsh.mjs')], { cwd: root, stdio: 'inherit' })
 const home = await mkdtemp(join(tmpdir(), 'dsh-regular-chat-integration-'))
 const log = join(home, 'host.log')
 const created = join(home, 'created.json')
 const env = { ...process.env, DSH_HOME: home, DSH_TEST_HOME: home, DSH_TEST_LOG: log, DSH_TEST_CREATED: created, npm_config_workspaces: 'false' }
+// Test archives belong to the disposable profile, never the repository.
+const [packed] = JSON.parse(execFileSync('npm', ['pack', '--pack-destination', home, '--json'], { cwd: root, env, encoding: 'utf8' }))
+assert.equal(packed.name, pkg.name)
+assert.equal(packed.version, pkg.version)
+const tarball = join(home, packed.filename)
 // Optional escape from a broken Corepack shim; no global tool configuration is changed.
 if (process.env.DSH_PNPM_ENTRY) {
   const bin = join(home, 'bin'); await mkdir(bin)
@@ -30,8 +34,9 @@ const upgradeFrom = process.env.DSH_TEST_UPGRADE_FROM
 const groupUpgradeFrom = process.env.DSH_TEST_GROUP_UPGRADE_FROM
 assert(!(upgradeFrom && groupUpgradeFrom), 'Choose one upgrade scenario per run')
 const previousPackage = upgradeFrom ?? groupUpgradeFrom
-runCli(['plugin', '--profile', 'web', 'add', previousPackage ? resolve(previousPackage) : resolve(root, tarball)])
+runCli(['plugin', '--profile', 'web', 'add', previousPackage ? resolve(previousPackage) : tarball])
 const profile = join(home, 'profiles/web')
+if (!previousPackage) await verifyInstalledBuild()
 await build({ entryPoints: [join(root, 'tests/integration/model.ts')], outfile: join(profile, 'regular-chat-test-model.mjs'), bundle: true, platform: 'node', format: 'esm', external: ['@deepseek-ai/*'],
   // The loose test fixture is outside a package. New DSH runtime resolution
   // no longer supplies its undeclared bare imports via profile fallbacks.
@@ -85,7 +90,7 @@ try {
     await start()
     check('scripts/browser-smoke.mjs')
     await stop()
-    runCli(['plugin', '--profile', 'web', 'add', resolve(root, tarball)])
+    runCli(['plugin', '--profile', 'web', 'add', tarball])
     await verifyInstalledBuild()
     await start()
     check('scripts/persistence-smoke.mjs')
@@ -105,7 +110,7 @@ try {
     check('scripts/browser-upgrade-smoke.mjs', 'failed')
     assert.equal(await readFile(lockPath, 'utf8'), oldLock)
     await stop()
-    runCli(['plugin', '--profile', 'web', 'add', resolve(root, tarball)])
+    runCli(['plugin', '--profile', 'web', 'add', tarball])
     await verifyInstalledBuild()
     await start()
     check('scripts/browser-upgrade-smoke.mjs', 'recovered')

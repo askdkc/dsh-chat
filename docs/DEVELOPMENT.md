@@ -10,11 +10,10 @@ npm ci
 npm test
 npm run build
 npm run verify:package
-npm pack
 npm run test:integration
 ```
 
-Use Node.js 22.19+ (22.x) or 24+, and pnpm 11.7.0. Do not apply a DSH source patch. The package and integration checks reject a modified DSH source tree. Build output is local; these commands do not publish to npm.
+Use Node.js 22.19+ (22.x) or 24+, and pnpm 11.7.0. Do not apply a DSH source patch. The package and integration checks reject a modified DSH source tree. The integration runner packs the plugin into its temporary test directory outside the repository; do not create or retain `.tgz` files in this checkout. These commands do not publish to npm.
 
 The browser integration runner uses an isolated DSH home, a local test model, and Playwright Chromium. Install its browser once if needed:
 
@@ -33,13 +32,12 @@ git -C .upstream worktree add --detach .regular-chat/alpha ddefc45fbc7f8e46dd731
 DSH_UPSTREAM=.upstream/.regular-chat/alpha npm run typecheck
 npm run build
 npm run verify:package
-npm pack
 DSH_UPSTREAM=.upstream/.regular-chat/alpha npm run test:integration
 ```
 
 The same plugin bundle supports both pinned versions. `DSH_UPSTREAM` selects the type/build or integration target; the browser test driver still uses Playwright and its browser from the original `.upstream` setup. The stock-source guard accepts only the two pinned commits and rejects tracked source edits. For a broken Corepack shim, invoke the installed pnpm entry point directly and pass its absolute path as `DSH_PNPM_ENTRY` to the integration runner; no global configuration change is needed.
 
-To test an upgrade, supply a tarball containing the previous version:
+To test an upgrade, supply a tarball containing the previous version stored outside this checkout:
 
 ```sh
 DSH_TEST_UPGRADE_FROM=/absolute/path/to/previous-version.tgz npm run test:integration

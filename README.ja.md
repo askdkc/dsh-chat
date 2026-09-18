@@ -9,7 +9,7 @@
 DSHリポジトリ直下で実行します。
 
 ```sh
-pnpm dsh plugin --profile web add @askdkc/dsh-chat
+pnpm dsh plugin --profile web add @askdkc/dsh-chat@latest
 ```
 
 0.1.1以降はDSH本体の変更・パッチ適用は不要です。

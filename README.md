@@ -9,7 +9,7 @@ Chat in DSH without selecting a project. By default, each chat gets its own work
 Run from your DSH repository:
 
 ```sh
-pnpm dsh plugin --profile web add @askdkc/dsh-chat
+pnpm dsh plugin --profile web add @askdkc/dsh-chat@latest
 ```
 
 Version 0.1.1 and later work without modifying DSH itself.
