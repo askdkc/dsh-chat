@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type ComponentType } from 'react'
+import { useCallback, useMemo, type ComponentType, type ReactNode } from 'react'
 import type { WorkspaceBrowserProps, DirectoryFlowOwnerProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { PropsHooks, HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
@@ -20,7 +20,7 @@ export type GroupBrowserExtra = {
 type LegacySessionOrdering = {
   insertSessionBefore?(workspaceId: WorkspaceId, sessionId: SessionId, beforeSessionId?: SessionId): Promise<void>
 }
-export type GroupBrowserProps = Omit<WorkspaceBrowserProps, 'renderSlot'> & LegacySessionOrdering & Omit<GroupBrowserExtra, 'hooks'> & PropsHooks<GroupBrowserExtra['hooks']>
+export type GroupBrowserProps = WorkspaceBrowserProps & LegacySessionOrdering & Omit<GroupBrowserExtra, 'hooks'> & PropsHooks<GroupBrowserExtra['hooks']>
 
 /** Decorate the registered stock browser through its public props contract.
  * Only this component's read projection is grouped; domain snapshots stay real. */
@@ -37,6 +37,9 @@ export function GroupedWorkspaceBrowser(props: GroupBrowserProps) {
   const first = () => members()[0]?.workspaceId
   const Native = props.NativeBrowser
   const insertSessionBefore = props.insertSessionBefore
+  // The wrapper inherits the native child declarations at registration time;
+  // forward newer child slots without treating them as directory flows.
+  const renderHostSlot = props.renderSlot as unknown as (slot: string, owner: unknown, options?: unknown) => ReactNode
   // Newer DSH owns session ordering entirely in the native viewing store.
   const legacyOrdering = insertSessionBefore ? {
     insertSessionBefore: async (workspaceId: WorkspaceId, sessionId: SessionId, beforeSessionId?: SessionId) => {
@@ -66,12 +69,16 @@ export function GroupedWorkspaceBrowser(props: GroupBrowserProps) {
         for (const member of members()) await props.insertWorkspaceBefore(member.workspaceId, anchor)
       } else await props.insertWorkspaceBefore(workspaceId, anchor)
     }}
-    renderSlot={(_slot, input) => { const owner = input as unknown as DirectoryFlowOwnerProps; return <WorkspaceChatPicker {...props.directory}
-      {...props} t={tChat} directoryOnly externalBusy={owner.busy} open={owner.open} onClose={owner.onCancel}
-      onDirectoryPicked={owner.onPicked} onPick={() => {}} selectedId={undefined}
-      useCreation={select => select({ phase: 'idle', pending: false, supported: true })}
-      useWorkspaceNavigation={props.useSessions}
-      // Directory adoption is still owned by the native sidebar's flow.
-      createWorkspace={props.createWorkspace as (input: { path: string }) => Promise<WorkspaceView>} /> }}
+    renderSlot={(slot, input, options) => {
+      if (slot !== 'sidebar.workspaces.directoryFlow') return renderHostSlot(slot, input, options)
+      const owner = input as unknown as DirectoryFlowOwnerProps
+      return <WorkspaceChatPicker {...props.directory}
+        {...props} t={tChat} directoryOnly externalBusy={owner.busy} open={owner.open} onClose={owner.onCancel}
+        onDirectoryPicked={owner.onPicked} onPick={() => {}} selectedId={undefined}
+        useCreation={select => select({ phase: 'idle', pending: false, supported: true })}
+        useWorkspaceNavigation={props.useSessions}
+        // Directory adoption is still owned by the native sidebar's flow.
+        createWorkspace={props.createWorkspace as (input: { path: string }) => Promise<WorkspaceView>} />
+    }}
   />
 }

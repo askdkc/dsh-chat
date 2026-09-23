@@ -84,9 +84,10 @@ export function apply(ctx: Context): void {
         }
       }
       // StoredEntry is deliberately type-erased by the public Slot registry.
-      // Preserve its store seat while registering our typed adapter at this boundary.
+      // Preserve its store and child-slot contracts while registering our adapter.
       const register = ctx.slots.register as (options: object, component: unknown) => () => void
-      remove = register.call(ctx.slots, { name: 'sidebar.workspaces', priority: -100, store: native.store, locale: 'workspace', inject }, GroupedWorkspaceBrowser)
+      remove = register.call(ctx.slots, { name: 'sidebar.workspaces', priority: -100, store: native.store,
+        locale: 'workspace', children: native.children, inject }, GroupedWorkspaceBrowser)
     }
     const unsubscribe = ctx.slots.subscribe('sidebar.workspaces', reconcile)
     reconcile()
