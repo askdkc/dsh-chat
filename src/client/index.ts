@@ -23,6 +23,7 @@ import { createGrouping } from './grouping.ts'
 import { GroupedWorkspaceBrowser, type GroupBrowserExtra } from './GroupedWorkspaceBrowser.tsx'
 import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkspaceBrowserInjected } from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type { NativeSidebarSlots } from './NativeSidebarSlots.tsx'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap { 'regular-chat': ChatKey }
@@ -75,6 +76,8 @@ export function apply(ctx: Context): void {
         const original = native.inject!() as WorkspaceBrowserInjected
         return { ...original,
           NativeBrowser: native.component as GroupBrowserExtra['NativeBrowser'],
+          nativeSlots: ctx.slots as unknown as NativeSidebarSlots,
+          translateSlot: namespace => ctx.locale.bind(namespace),
           directory: { ...face('start'), createWorkspace: input => ctx.workspaces.create(input),
             listDirectory: async (path, signal) => directoryResult(await ctx.remote.directoryPicker.list(path, signal)),
             createDirectory: (path, name) => ctx.uiWorkspace.createDirectory(path, name), pickDirectory: () => ctx.uiWorkspace.pickDirectory() },
@@ -83,11 +86,11 @@ export function apply(ctx: Context): void {
             chatLanguage: { getSnapshot: () => ctx.locale.getSnapshot().active, subscribe: listener => ctx.locale.subscribe(listener) } },
         }
       }
-      // StoredEntry is deliberately type-erased by the public Slot registry.
-      // Preserve its store and child-slot contracts while registering our adapter.
+      // The native entry keeps ownership of its child declarations. Redeclaring
+      // them on this shadow entry is rejected by the slot registry.
       const register = ctx.slots.register as (options: object, component: unknown) => () => void
       remove = register.call(ctx.slots, { name: 'sidebar.workspaces', priority: -100, store: native.store,
-        locale: 'workspace', children: native.children, inject }, GroupedWorkspaceBrowser)
+        locale: 'workspace', inject }, GroupedWorkspaceBrowser)
     }
     const unsubscribe = ctx.slots.subscribe('sidebar.workspaces', reconcile)
     reconcile()

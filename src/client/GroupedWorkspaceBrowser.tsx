@@ -8,9 +8,12 @@ import type { PickerInjected } from './WorkspaceChatPicker.tsx'
 import { WorkspaceChatPicker } from './WorkspaceChatPicker.tsx'
 import { groupId, groupedSnapshot, type ChatGroup } from './grouping.ts'
 import { en, ja, zh, type ChatKey } from './locales.ts'
+import { NativeSidebarSlot, type NativeSidebarSlots } from './NativeSidebarSlots.tsx'
 
 export type GroupBrowserExtra = {
   NativeBrowser: ComponentType<WorkspaceBrowserProps>
+  nativeSlots: NativeSidebarSlots
+  translateSlot(namespace: string): (key: string, params?: Record<string, unknown>) => string
   directory: Omit<PickerInjected, 'hooks'>
   startChat(): void
   renameGroup(title: string): Promise<void>
@@ -20,7 +23,7 @@ export type GroupBrowserExtra = {
 type LegacySessionOrdering = {
   insertSessionBefore?(workspaceId: WorkspaceId, sessionId: SessionId, beforeSessionId?: SessionId): Promise<void>
 }
-export type GroupBrowserProps = WorkspaceBrowserProps & LegacySessionOrdering & Omit<GroupBrowserExtra, 'hooks'> & PropsHooks<GroupBrowserExtra['hooks']>
+export type GroupBrowserProps = Omit<WorkspaceBrowserProps, 'renderSlot'> & LegacySessionOrdering & Omit<GroupBrowserExtra, 'hooks'> & PropsHooks<GroupBrowserExtra['hooks']>
 
 /** Decorate the registered stock browser through its public props contract.
  * Only this component's read projection is grouped; domain snapshots stay real. */
@@ -37,9 +40,6 @@ export function GroupedWorkspaceBrowser(props: GroupBrowserProps) {
   const first = () => members()[0]?.workspaceId
   const Native = props.NativeBrowser
   const insertSessionBefore = props.insertSessionBefore
-  // The wrapper inherits the native child declarations at registration time;
-  // forward newer child slots without treating them as directory flows.
-  const renderHostSlot = props.renderSlot as unknown as (slot: string, owner: unknown, options?: unknown) => ReactNode
   // Newer DSH owns session ordering entirely in the native viewing store.
   const legacyOrdering = insertSessionBefore ? {
     insertSessionBefore: async (workspaceId: WorkspaceId, sessionId: SessionId, beforeSessionId?: SessionId) => {
@@ -69,8 +69,10 @@ export function GroupedWorkspaceBrowser(props: GroupBrowserProps) {
         for (const member of members()) await props.insertWorkspaceBefore(member.workspaceId, anchor)
       } else await props.insertWorkspaceBefore(workspaceId, anchor)
     }}
-    renderSlot={(slot, input, options) => {
-      if (slot !== 'sidebar.workspaces.directoryFlow') return renderHostSlot(slot, input, options)
+    renderSlot={(slot: string, input: unknown, options?: unknown): ReactNode => {
+      if (slot !== 'sidebar.workspaces.directoryFlow') return <NativeSidebarSlot slot={slot} owner={input}
+        options={options} slots={props.nativeSlots} inherited={props as unknown as Record<string, unknown>}
+        translate={props.translateSlot} />
       const owner = input as unknown as DirectoryFlowOwnerProps
       return <WorkspaceChatPicker {...props.directory}
         {...props} t={tChat} directoryOnly externalBusy={owner.busy} open={owner.open} onClose={owner.onCancel}

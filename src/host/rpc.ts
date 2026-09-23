@@ -37,7 +37,9 @@ export function dispatcher(service: ServiceSource): ConnectionRpcHandler {
 
 /** Exact authenticated routes coexist with DSH's sole Gateway interceptor. */
 export function fetchDispatcher(endpoint: string, service: ServiceSource) {
-  const dispatch = dispatcher(service)
+  // This exact Fetch route has no Connection peer; our handler does not read it.
+  // Newer DSH Connection handlers require a fourth peer argument.
+  const dispatch = dispatcher(service) as (endpoint: string, payload: unknown, signal: AbortSignal) => ReturnType<ConnectionRpcHandler>
   return async (request: Request): Promise<Response> => {
     if (request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json') return new Response('application/json required', { status: 415 })
     let body: unknown
