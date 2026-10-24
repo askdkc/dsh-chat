@@ -2,7 +2,7 @@ import ts from 'typescript'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 const upstream = resolve(process.env.DSH_UPSTREAM ?? '.upstream')
-if (!existsSync(`${upstream}/tsconfig.base.json`)) throw Error('Run the pinned stock DSH checkout setup in docs/DEVELOPMENT.md first.')
+if (!existsSync(`${upstream}/tsconfig.base.json`)) throw Error('Run the current official DSH checkout setup in docs/DEVELOPMENT.md first.')
 const original = ts.readConfigFile(`${upstream}/tsconfig.base.json`, ts.sys.readFile).config
 const paths = Object.fromEntries(Object.entries(original.compilerOptions.paths).map(([key, values]) => [key, values.map(value => resolve(upstream, value.replace('/src', '/lib/types').replace(/(?<!\.d)\.tsx?$/, '.d.ts')))]))
 paths.zod = [resolve('node_modules/zod')]

@@ -1,48 +1,44 @@
 # Development
 
-Build against the pinned, unmodified DSH source tree. From this plugin repository:
+Verify the plugin against the current, unmodified official DSH default branch. From this repository:
 
 ```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git .upstream
-git -C .upstream checkout d347e703908d0406b7a7ef80e3a0e594d86b2215
+node scripts/prepare-latest-dsh.mjs
+corepack enable
+corepack prepare "$(node -p "require('./.upstream/package.json').packageManager")" --activate
 (cd .upstream && pnpm install --frozen-lockfile && pnpm run build)
 npm ci
 npm test
+npm run test:contract
 npm run build
 npm run verify:package
+npm run test:http
+(cd .upstream && pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install chromium --only-shell)
 npm run test:integration
 ```
 
-Use Node.js 22.19+ (22.x) or 24+, and pnpm 11.7.0. Do not apply a DSH source patch. The package and integration checks reject a modified DSH source tree. The integration runner packs the plugin into its temporary test directory outside the repository; do not create or retain `.tgz` files in this checkout. These commands do not publish to npm.
+The setup resolves the official default branch when it runs and records the actual commit in `dsh-revision-evidence.json`. The commit is evidence of what was tested, not a compatibility allowlist. Do not patch DSH to make the plugin work. The stock-source guard rejects tracked edits and untracked source files, while allowing ignored build artifacts. CI runs the same current-upstream acceptance workflow on pushes, pull requests, manual requests and a daily schedule.
 
-The browser integration runner uses an isolated DSH home, a local test model, and Playwright Chromium. Install its browser once if needed:
+The stock-source guard checks official origin, clean source and consistency with revision evidence when supplied. By itself it does not prove that an independently prepared checkout is the latest remote HEAD: absent fresh evidence, an older official ancestor can pass. Use `prepare-latest-dsh.mjs` with a fresh target to resolve current upstream, or independently verify and record remote HEAD for a manually prepared checkout.
 
-```sh
-(cd .upstream && PLAYWRIGHT_BROWSERS_PATH="$PWD/.regular-chat/browsers" pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install chromium --only-shell)
-```
+Follow the selected upstream's Node and package-manager requirements. `DSH_UPSTREAM` can select an independently prepared official checkout; build, types, package verification and all browser drivers use that same target. `PLAYWRIGHT_BROWSERS_PATH` may select a browser install, but is not silently redirected to an older checkout. `DSH_TEST_BROWSER_EXECUTABLE` explicitly selects an existing system Chromium when required; record its version with test evidence. The test runner creates its own isolated DSH home and keyless model. `TMPDIR` can place disposable test data on a filesystem with sufficient free space. Screenshots and diagnostics remain in that test home, not fixed developer directories.
 
-See [verification](VERIFICATION.md) for the tested scope. Production consumers install the built npm package and do not need this checkout.
+The browser acceptance suite verifies new-chat creation and the first streamed response, separate workspaces, locale behavior, interrupted creation, restart, grouping and history retention. Historical results in VERIFICATION.md describe only their recorded source identities and are not evidence that a newer upstream passed.
 
-To also verify the Session ownership/navigation API in DSH `0.1.6-alpha.2`, keep the original checkout and add an isolated stock worktree:
+For a broken Corepack shim, pass an installed pnpm entry point as `DSH_PNPM_ENTRY`; no global configuration change is required.
 
-```sh
-git -C .upstream fetch origin ddefc45fbc7f8e46dd73185e68295696d1297887
-git -C .upstream worktree add --detach .regular-chat/alpha ddefc45fbc7f8e46dd73185e68295696d1297887
-(cd .upstream/.regular-chat/alpha && pnpm install --frozen-lockfile && pnpm run build)
-DSH_UPSTREAM=.upstream/.regular-chat/alpha npm run typecheck
-npm run build
-npm run verify:package
-DSH_UPSTREAM=.upstream/.regular-chat/alpha npm run test:integration
-```
+## Upgrade scenarios
 
-The same plugin bundle supports both pinned versions. `DSH_UPSTREAM` selects the type/build or integration target; the browser test driver still uses Playwright and its browser from the original `.upstream` setup. The stock-source guard accepts only the two pinned commits and rejects tracked source edits. For a broken Corepack shim, invoke the installed pnpm entry point directly and pass its absolute path as `DSH_PNPM_ENTRY` to the integration runner; no global configuration change is needed.
-
-To test an upgrade, supply a tarball containing the previous version stored outside this checkout:
+The integration runner packs this checkout into its temporary profile outside the repository. Supply a previous package tarball stored outside the checkout to exercise recovery from a prior installed version:
 
 ```sh
 DSH_TEST_UPGRADE_FROM=/absolute/path/to/previous-version.tgz npm run test:integration
 ```
 
-This registers three ordinary project Workspaces before any regular chat exists, selects one, kills and restarts the old Host to reproduce its stale-lock failure, then installs the current tarball into the same temporary profile. It compares both installed bundles with the build and verifies that the browser receives the new client code before creating a dedicated chat from the existing project selection. Use a legacy version with the old lock behavior for this regression scenario. No real user profile is modified.
+This reproduces a legacy writer-lock failure, installs the current package, verifies both installed bundles match the build, then creates a chat from an existing workspace selection. Use an actual legacy package with the old lock behavior, not the current package.
 
-For sidebar grouping upgrades from the earlier local build without grouping, preserve that tarball under a separate filename and use `DSH_TEST_GROUP_UPGRADE_FROM=/absolute/path/to/dsh-chat-before-grouping.tgz` instead. Do not point this at the current package. The runner creates conversations using the preserved build, installs the current package, and checks grouped browsing, deletion, history and files across restart.
+For an earlier build without grouping, use `DSH_TEST_GROUP_UPGRADE_FROM=/absolute/path/to/previous-without-grouping.tgz`. This creates conversations with the supplied package, installs this build and checks grouping, deletion, history and files across restart. Neither scenario changes a real user profile or publishes a package.
+
+`test:http` verifies the packed plugin through a real CLI Host: authenticated creation, idempotent commit, a completed keyless-model turn, separate chat storage and restart retention. It does not replace the browser UI acceptance suite.
+
+For a combined-package acceptance run, set `DSH_TEST_KIOKUKO_TARBALL` to an already built Kiokuko package and run `npm run test:http`. The isolated profile enables development Lisp task mode and uses the keyless test model to invoke `lisp_status`; the test requires a successful same-turn tool result, completed response and restart retention. No external provider credentials are used.

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { z } from 'zod'
 import type { Workspace, WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { SessionController } from '@deepseek-ai/dsh-api-session-controller'
+import type { SessionQueryEngine } from '@deepseek-ai/dsh-session-query'
 import type { CreationRecord, Intent, Prepared, ScopeRequest } from '../shared/protocol.ts'
 import { ChatError } from './errors.ts'
 import { ChatPaths } from './paths.ts'
@@ -13,7 +13,7 @@ import { acquireOwner } from './owner-lock.ts'
 
 export interface HostServices {
   workspaceRegistry: { create(path: string, title?: string): Promise<Workspace>; get(id: WorkspaceId): Workspace | undefined; list(): readonly Workspace[] }
-  sessionController: Pick<SessionController, 'inspect'>
+  sessionQuery: Pick<SessionQueryEngine, 'observeSession'>
 }
 export class ChatService {
   private readonly operations = new Map<string, Promise<unknown>>()
@@ -64,8 +64,9 @@ export class ChatService {
     }).catch(() => {}) // Caller receives the original rejection; tracking is non-owning.
     return task
   }
-  prepare(intent: Intent): Promise<Prepared> {
+  prepare(intent: Intent, signal?: AbortSignal): Promise<Prepared> {
     return this.run(intent, async () => {
+      signal?.throwIfAborted()
       let record = await this.journal.read(intent.requestId)
       if (!record) {
         const now = new Date().toISOString()
@@ -78,7 +79,7 @@ export class ChatService {
       }
       if (record.phase !== 'allocated') {
         await this.verifyWorkspace(record)
-        if (record.phase === 'committed') await this.verifySession(record)
+        if (record.phase === 'committed') await this.verifySession(record, signal)
         return this.prepared(record)
       }
       const cwd = await this.paths.workspace(record.sessionId, true)
@@ -90,22 +91,25 @@ export class ChatService {
       return this.prepared(saved)
     })
   }
-  status(request: ScopeRequest): Promise<{ record: CreationRecord | null }> {
+  status(request: ScopeRequest, signal?: AbortSignal): Promise<{ record: CreationRecord | null }> {
     return this.run(request, async () => {
+      signal?.throwIfAborted()
       const record = await this.journal.read(request.requestId)
       if (record && record.phase !== 'allocated') {
         await this.verifyWorkspace(record)
-        if (record.phase === 'committed') await this.verifySession(record)
+        if (record.phase === 'committed') await this.verifySession(record, signal)
       }
       return { record: record ?? null }
     })
   }
-  commit(request: ScopeRequest) {
+  commit(request: ScopeRequest, signal?: AbortSignal) {
     return this.run(request, async () => {
+      signal?.throwIfAborted()
       const record = await this.journal.read(request.requestId)
       if (!record || record.phase === 'allocated') throw new ChatError('session-not-ready')
       await this.verifyWorkspace(record)
-      await this.verifySession(record)
+      await this.verifySession(record, signal)
+      signal?.throwIfAborted()
       if (record.phase !== 'committed') await this.journal.write({ ...record, phase: 'committed', updatedAt: new Date().toISOString() })
       return { committed: true as const, ...this.prepared(record) }
     })
@@ -119,14 +123,26 @@ export class ChatService {
     if (!workspace || workspace.path !== record.canonicalCwd || path !== record.canonicalCwd) throw new ChatError('recovery-required')
     return workspace
   }
-  private async verifySession(record: Exclude<CreationRecord, { phase: 'allocated' }>): Promise<void> {
+  private async verifySession(record: Exclude<CreationRecord, { phase: 'allocated' }>, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted()
     const workspace = await this.verifyWorkspace(record)
-    let inspection
-    try { inspection = await this.services.sessionController.inspect(record.sessionId as SessionId) }
-    catch { throw new ChatError(record.phase === 'committed' ? 'recovery-required' : 'session-not-ready') }
-    const cwd = inspection.meta.cwd
-    if (!cwd || await realpath(cwd) !== record.canonicalCwd) throw new ChatError('recovery-required')
-    if (!workspace.sessionIds.includes(record.sessionId as SessionId)) throw new ChatError('session-not-ready')
+    let observation
+    try {
+      observation = await this.services.sessionQuery.observeSession(record.sessionId as SessionId, {
+        projectionMode: 'none', ...(signal ? { signal } : {}),
+      })
+    } catch {
+      signal?.throwIfAborted()
+      throw new ChatError(record.phase === 'committed' ? 'recovery-required' : 'session-not-ready')
+    }
+    // Release the caller-owned observation without activating an Agent.
+    try {
+      signal?.throwIfAborted()
+      const cwd = observation.header.cwd
+      if (observation.header.id !== record.sessionId || !cwd || await realpath(cwd) !== record.canonicalCwd) throw new ChatError('recovery-required')
+      signal?.throwIfAborted()
+      if (!workspace.sessionIds.includes(record.sessionId as SessionId)) throw new ChatError('session-not-ready')
+    } finally { observation[Symbol.dispose]() }
   }
   async dispose(): Promise<void> {
     this.closed = true

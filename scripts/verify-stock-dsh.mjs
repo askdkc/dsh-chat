@@ -1,10 +1,18 @@
 import { execFileSync } from 'node:child_process'
-import assert from 'node:assert/strict'
+import { existsSync, readFileSync } from 'node:fs'
 const upstream = process.env.DSH_UPSTREAM ?? '.upstream'
-const supported = ['d347e703908d0406b7a7ef80e3a0e594d86b2215', 'ddefc45fbc7f8e46dd73185e68295696d1297887']
-const base = execFileSync('git', ['-C', upstream, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
-assert(supported.includes(base), `Unverified DSH revision: ${base}`)
-// Integration evidence must come from the stock source tree, never the former
-// Hero-actions patch. Ignored build artifacts and test browser files are allowed.
-execFileSync('git', ['-C', upstream, 'diff', '--exit-code', base, '--'], { stdio: 'pipe' })
-console.log(`DSH source matches stock ${base}; no core patch.`)
+const git = args => execFileSync('git', ['-C', upstream, ...args], { encoding: 'utf8' }).trim()
+const revision = git(['rev-parse', 'HEAD'])
+const origin = git(['remote', 'get-url', 'origin'])
+if (!['https://github.com/deepseek-ai/deepseek-harness.git', 'https://github.com/deepseek-ai/deepseek-harness'].includes(origin)) throw Error(`Not the official upstream: ${origin}`)
+const evidencePath = process.env.DSH_REVISION_EVIDENCE ?? 'dsh-revision-evidence.json'
+if (existsSync(evidencePath)) {
+  const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'))
+  if (evidence.repository !== 'https://github.com/deepseek-ai/deepseek-harness.git' || evidence.revision !== revision) throw Error('Selected upstream does not match resolved revision evidence')
+}
+git(['merge-base', '--is-ancestor', revision, 'refs/remotes/origin/HEAD'])
+// Identity is evidence, not a compatibility allowlist.
+git(['diff', '--exit-code', revision, '--'])
+const untracked = git(['ls-files', '--others', '--exclude-standard'])
+if (untracked) throw Error(`DSH has untracked source files: ${untracked}`)
+console.log(JSON.stringify({ repository: 'https://github.com/deepseek-ai/deepseek-harness', revision, stock: true }))

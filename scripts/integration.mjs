@@ -35,6 +35,7 @@ const groupUpgradeFrom = process.env.DSH_TEST_GROUP_UPGRADE_FROM
 assert(!(upgradeFrom && groupUpgradeFrom), 'Choose one upgrade scenario per run')
 const previousPackage = upgradeFrom ?? groupUpgradeFrom
 runCli(['plugin', '--profile', 'web', 'add', previousPackage ? resolve(previousPackage) : tarball])
+if (process.env.DSH_TEST_KIOKUKO_TARBALL) runCli(['plugin', '--profile', 'web', 'add', resolve(process.env.DSH_TEST_KIOKUKO_TARBALL)])
 const profile = join(home, 'profiles/web')
 if (!previousPackage) await verifyInstalledBuild()
 await build({ entryPoints: [join(root, 'tests/integration/model.ts')], outfile: join(profile, 'regular-chat-test-model.mjs'), bundle: true, platform: 'node', format: 'esm', external: ['@deepseek-ai/*'],
@@ -48,6 +49,7 @@ await build({ entryPoints: [join(root, 'tests/integration/model.ts')], outfile: 
 })
 const patch = join(profile, 'regular-chat-test.patch.yml')
 await copyFile(join(root, 'tests/integration/model.patch.yml'), patch)
+if (process.env.DSH_TEST_KIOKUKO_TARBALL) await writeFile(patch, (await readFile(patch, 'utf8')) + '\n- id: kiokuko-dsh\n  config:\n    enabled: true\n    agenticReplay:\n      enabled: false\n    lisp:\n      enabled: true\n      executionMode: development\n')
 const server = createServer()
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const port = server.address().port
@@ -86,6 +88,14 @@ async function verifyInstalledBuild() {
   }
 }
 try {
+  if (process.argv.includes('--http')) {
+    await start()
+    check('tests/integration/auth-smoke.mjs')
+    check('tests/integration/http-chat-smoke.mjs')
+    await stop(); await start()
+    check('tests/integration/http-chat-smoke.mjs', 'restart')
+    await stop()
+  } else {
   if (groupUpgradeFrom) {
     await start()
     check('scripts/browser-smoke.mjs')
@@ -154,6 +164,7 @@ try {
   check('scripts/browser-stock-picker-smoke.mjs')
   check('scripts/persistence-smoke.mjs')
   console.log('Restart, disable, and uninstall preserve standard history and files.')
+  }
 } finally {
   await stop()
   console.log(`Integration home retained: ${home}`)

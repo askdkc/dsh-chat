@@ -1,0 +1,40 @@
+name: Current official DSH compatibility
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 6 * * *'
+permissions:
+  contents: read
+jobs:
+  current-dsh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Resolve current official DSH
+        run: node scripts/prepare-latest-dsh.mjs
+      - name: Select upstream package manager
+        run: |
+          corepack enable
+          corepack prepare "$(node -p "require('./.upstream/package.json').packageManager")" --activate
+      - name: Build unmodified official DSH
+        working-directory: .upstream
+        run: pnpm install --frozen-lockfile && pnpm run build
+      - run: npm ci
+      - run: npm test && npm run test:contract && npm run build && npm run verify:package
+      - run: npm run test:http
+      - name: Install test browser
+        working-directory: .upstream
+        run: pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps chromium --only-shell
+      - name: Real chat creation, first turn and restart
+        run: npm run test:integration
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: current-dsh-revision
+          path: dsh-revision-evidence.json

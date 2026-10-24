@@ -55,12 +55,14 @@
     "test": "vitest run",
     "build": "node scripts/build-host.mjs && node scripts/build-client.mjs",
     "verify:package": "node scripts/verify-package.mjs",
-    "test:integration": "node scripts/integration.mjs"
+    "test:integration": "node scripts/integration.mjs",
+    "test:contract": "node scripts/test-observation-native.mjs",
+    "test:http": "node scripts/integration.mjs --http"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/react": "~18.3.1",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "typescript": "~5.9.3",
@@ -68,6 +70,6 @@
     "zod": "^4.1.0"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "4.0.2"
+    "@deepseek-ai/cordis": "*"
   }
 }

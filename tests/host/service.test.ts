@@ -14,6 +14,7 @@ async function bench() {
   cleanups.push(() => rm(home, { recursive: true, force: true }))
   const rows = new Map<string, any>() // Test doubles intentionally expose mutable failure-injection state.
   const headers = new Map<string, string>()
+  const releaseObservation = vi.fn()
   const services: HostServices = {
     workspaceRegistry: {
       create: vi.fn(async (path, title) => {
@@ -25,9 +26,9 @@ async function bench() {
       get: id => rows.get(id),
       list: () => [...rows.values()],
     },
-    sessionController: { inspect: vi.fn(async id => {
+    sessionQuery: { observeSession: vi.fn(async id => {
       if (!headers.has(id)) throw Error('missing')
-      return { meta: { cwd: headers.get(id) } } as never
+      return { header: { id, cwd: headers.get(id) }, [Symbol.dispose]: releaseObservation } as never
     }) },
   }
   let service = await ChatService.create(home, services)
@@ -37,11 +38,61 @@ async function bench() {
   const attach = (p: { sessionId: string; workspaceId: string; cwd: string }) => {
     headers.set(p.sessionId, p.cwd); rows.get(p.workspaceId).sessionIds.push(p.sessionId)
   }
-  return { home, rows, headers, services, get service() { return service }, intent, scope, attach,
+  return { home, rows, headers, services, releaseObservation, get service() { return service }, intent, scope, attach,
     restart: async () => { await service.dispose(); service = await ChatService.create(home, services) },
   }
 }
 describe('durable regular chat creation', () => {
+  it('uses only the current observation API and releases leases across retry/restart', async () => {
+    const b = await bench(), i = b.intent(), p = await b.service.prepare(i)
+    expect('sessionController' in b.services).toBe(false)
+    b.attach(p)
+    await expect(b.service.commit(b.scope(i))).resolves.toMatchObject({ committed: true })
+    expect(b.services.sessionQuery.observeSession).toHaveBeenCalledWith(p.sessionId, { projectionMode: 'none' })
+    expect(b.releaseObservation).toHaveBeenCalledTimes(1)
+    await b.restart()
+    await expect(b.service.prepare(i)).resolves.toEqual(p)
+    await expect(b.service.commit(b.scope(i))).resolves.toMatchObject({ sessionId: p.sessionId })
+    expect(b.releaseObservation).toHaveBeenCalledTimes(3)
+    expect(b.rows.size).toBe(1)
+  })
+  it('releases observations after wrong identity, cwd, or missing membership without committing', async () => {
+    for (const failure of ['id', 'cwd', 'membership']) {
+      const b = await bench(), i = b.intent(), p = await b.service.prepare(i)
+      b.attach(p)
+      if (failure === 'membership') b.rows.get(p.workspaceId).sessionIds = []
+      if (failure === 'cwd') b.headers.set(p.sessionId, b.home)
+      if (failure === 'id') vi.mocked(b.services.sessionQuery.observeSession).mockResolvedValueOnce({
+        header: { id: 'foreign', cwd: p.cwd }, [Symbol.dispose]: b.releaseObservation,
+      } as never)
+      await expect(b.service.commit(b.scope(i))).rejects.toMatchObject({ code: failure === 'membership' ? 'session-not-ready' : 'recovery-required' })
+      expect(b.releaseObservation).toHaveBeenCalledTimes(1)
+      expect((await b.service.status(b.scope(i))).record?.phase).toBe('prepared')
+    }
+  })
+  it('passes cancellation to observations and releases a lease returned after abort', async () => {
+    const b = await bench(), i = b.intent(), p = await b.service.prepare(i), abort = new AbortController()
+    b.attach(p)
+    vi.mocked(b.services.sessionQuery.observeSession).mockImplementationOnce(async (_id, options) => {
+      expect(options?.signal).toBe(abort.signal)
+      abort.abort()
+      return { header: { id: p.sessionId, cwd: p.cwd }, [Symbol.dispose]: b.releaseObservation } as never
+    })
+    await expect(b.service.commit(b.scope(i), abort.signal)).rejects.toMatchObject({ name: 'AbortError' })
+    expect(b.releaseObservation).toHaveBeenCalledTimes(1)
+    expect((await b.service.status(b.scope(i))).record?.phase).toBe('prepared')
+    await expect(b.service.commit(b.scope(i))).resolves.toMatchObject({ committed: true })
+    expect(b.rows.size).toBe(1)
+  })
+  it('rejects cancelled requests before observation and maps cancellation at RPC boundary', async () => {
+    const b = await bench(), i = b.intent(), p = await b.service.prepare(i), abort = new AbortController()
+    b.attach(p); abort.abort()
+    await expect(b.service.commit(b.scope(i), abort.signal)).rejects.toMatchObject({ name: 'AbortError' })
+    expect(b.services.sessionQuery.observeSession).not.toHaveBeenCalled()
+    expect(await dispatcher(Promise.resolve(b.service))('regular-chat/commit', b.scope(i), abort.signal))
+      .toMatchObject({ ok: false, error: { code: 'cancelled' } })
+    expect((await b.service.status(b.scope(i))).record?.phase).toBe('prepared')
+  })
   it('groups only journal-owned registrations, retains independent cwd values, and respects deleted registrations', async () => {
     const b = await bench()
     const a = await b.service.prepare(b.intent()), c = await b.service.prepare(b.intent())

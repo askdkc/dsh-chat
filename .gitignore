@@ -8,3 +8,7 @@ coverage/
 .integration-home*/
 PLAN.md
 .kiokuko.json
+
+.test-tmp/
+.npm-cache/
+dsh-revision-evidence.json

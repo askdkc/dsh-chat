@@ -24,9 +24,9 @@ export function dispatcher(service: ServiceSource): ConnectionRpcHandler {
       const input = endpoint === 'regular-chat/prepare' ? prepareRequestSchema.parse(payload) : scopeRequestSchema.parse(payload)
       const host = await (typeof service === 'function' ? service() : service)
       signal.throwIfAborted()
-      if (endpoint === 'regular-chat/prepare') return { ok: true, value: preparedSchema.parse(await host.prepare(prepareRequestSchema.parse(input))) }
-      if (endpoint === 'regular-chat/status') return { ok: true, value: statusSchema.parse(await host.status(input)) }
-      if (endpoint === 'regular-chat/commit') return { ok: true, value: commitSchema.parse(await host.commit(input)) }
+      if (endpoint === 'regular-chat/prepare') return { ok: true, value: preparedSchema.parse(await host.prepare(prepareRequestSchema.parse(input), signal)) }
+      if (endpoint === 'regular-chat/status') return { ok: true, value: statusSchema.parse(await host.status(input, signal)) }
+      if (endpoint === 'regular-chat/commit') return { ok: true, value: commitSchema.parse(await host.commit(input, signal)) }
       throw new ChatError('invalid-request')
     } catch (error) {
       const failure = signal.aborted ? new ChatError('cancelled') : error instanceof ZodError ? new ChatError('invalid-request') : safeError(error)

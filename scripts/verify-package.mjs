@@ -22,7 +22,7 @@ assert(!/node:|resolveDshHome|node_modules\/react\/|node_modules\/@deepseek-ai\/
 assert(!client.includes('conversation.hero.actions'), 'Browser bundle requires a patched DSH slot')
 const host = await import('../lib/index.js')
 assert.equal(typeof host.apply, 'function')
-assert.deepEqual(host.inject, ['connection', 'workspaceRegistry', 'sessionController'])
+assert.deepEqual(host.inject, ['connection', 'workspaceRegistry', 'sessionQuery'])
 assert.equal(pkg.dsh.bundle.patch, 'cordis.patch.yml')
 assert(pkg.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-conversation'))
 assert(!pkg.scripts.preinstall && !pkg.scripts.install && !pkg.scripts.postinstall)

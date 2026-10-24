@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-workspace'
-import type {} from '@deepseek-ai/dsh-api-session-controller'
+import type {} from '@deepseek-ai/dsh-session-query'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { endpoints } from './shared/protocol.ts'
 import { ChatService } from './host/service.ts'
@@ -9,7 +9,7 @@ import { fetchDispatcher } from './host/rpc.ts'
 import { serviceLifetime } from './host/lifetime.ts'
 
 export const name = 'regular-chat'
-export const inject = ['connection', 'workspaceRegistry', 'sessionController']
+export const inject = ['connection', 'workspaceRegistry', 'sessionQuery']
 /** Mount only on the authenticated DSH channel; graceful unload retains all chat data. */
 export function apply(ctx: Context): void {
   const service = serviceLifetime(() => ChatService.create(resolveDshHome(), ctx))

@@ -1,16 +1,13 @@
-import { createRequire } from 'node:module'
+import { chromium, browserLaunchOptions, testPath, requiredTestEnv } from './browser-test-runtime.mjs'
 import { readFile, mkdir, mkdtemp } from 'node:fs/promises'
 import { join } from 'node:path'
 import assert from 'node:assert/strict'
-process.env.PLAYWRIGHT_BROWSERS_PATH ??= new URL('../.upstream/.regular-chat/browsers', import.meta.url).pathname
-const require = createRequire(new URL('../.upstream/apps/web/package.json', import.meta.url))
-const { chromium } = require('playwright')
 const log = await readFile(process.env.DSH_TEST_LOG, 'utf8')
 const url = log.match(/https?:\/\/[^\s\x1b]+[?&]token=[^\s\x1b]+/)[0]
 const root = await mkdtemp(join(process.env.DSH_TEST_HOME, 'native-picker-'))
 const selectedPath = join(root, 'native-selected-project')
 await mkdir(selectedPath)
-const browser = await chromium.launch({ headless: true })
+const browser = await chromium.launch(browserLaunchOptions)
 let page
 try {
   page = await browser.newPage({ locale: 'en-US' })
@@ -64,11 +61,17 @@ try {
   const openSidebar = () => sidebarAdd.click()
   // Cancellation re-arms the same icon without creating a Workspace.
   await reply(await openNative(openSidebar, true), { ok: true, value: null })
+  const beforeAdoption = await page.locator('[data-conversation-content]').getAttribute('data-conversation-session')
   const adopted = page.waitForResponse(response => response.url().endsWith('/api/workspace/create'))
   await reply(await openNative(openSidebar, true), { ok: true, value: selectedPath })
   assert((await (await adopted).json()).result.ok)
   await page.getByRole('tree').first().getByText('native-selected-project', { exact: true }).waitFor()
   await noDialog()
+  await page.waitForFunction(previous => {
+    const content = document.querySelector('[data-conversation-content]')
+    const current = content?.getAttribute('data-conversation-session')
+    return current && current !== previous && content.getAttribute('data-content-phase') !== 'settling'
+  }, beforeAdoption)
   // Native failures still have a visible, dismissible recovery surface.
   await reply(await openNative(openSidebar, true), { ok: false, error: {
     code: 'directory-picker/unavailable', message: 'Native chooser fixture failed', details: {},
@@ -103,6 +106,6 @@ try {
   assert.deepEqual(errors, [])
   console.log('Native picker: no sidebar popup during capability detection or OS selection; cancel/reopen, adoption, visible error recovery, Hero Add, Host browse and denied listing passed.')
 } catch (error) {
-  if (page) await page.screenshot({ path: '/tmp/dsh-chat-native-picker-failure.png', fullPage: true })
+  if (page) await page.screenshot({ path: testPath('dsh-chat-native-picker-failure.png'), fullPage: true })
   throw error
 } finally { await browser.close() }

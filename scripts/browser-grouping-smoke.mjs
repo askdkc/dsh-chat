@@ -1,14 +1,11 @@
-import { createRequire } from 'node:module'
+import { chromium, browserLaunchOptions, testPath, requiredTestEnv } from './browser-test-runtime.mjs'
 import { readFile, writeFile, stat, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import assert from 'node:assert/strict'
-process.env.PLAYWRIGHT_BROWSERS_PATH ??= new URL('../.upstream/.regular-chat/browsers', import.meta.url).pathname
-const require = createRequire(new URL('../.upstream/apps/web/package.json', import.meta.url))
-const { chromium } = require('playwright')
 const log = await readFile(process.env.DSH_TEST_LOG, 'utf8')
 const url = log.match(/https?:\/\/[^\s\x1b]+[?&]token=[^\s\x1b]+/)[0]
-const browser = await chromium.launch({ headless: true })
+const browser = await chromium.launch(browserLaunchOptions)
 let page
 try {
   page = await browser.newPage({ locale: 'en-US', viewport: { width: 1250, height: 900 } })
@@ -77,7 +74,7 @@ try {
   await hoverGroup('Regular Chat')
   await action.waitFor()
   assert.equal(await action.count(), 1)
-  await page.screenshot({ path: '/tmp/dsh-chat-grouped-sidebar.png', fullPage: true })
+  await page.screenshot({ path: testPath('dsh-chat-grouped-sidebar.png'), fullPage: true })
   // Exercise the native confirmation and actual workspace/delete requests.
   await action.click()
   await page.getByRole('menuitem', { name: 'Delete workspace', exact: true }).click()
@@ -104,8 +101,8 @@ try {
   console.log('One Regular Chat group, rename, native sidebar Add/Delete, group + creates isolated cwd, group deletion succeeds, files remain and sessions return to Ungrouped after reload.')
 } catch (error) {
   if (page) {
-    await writeFile('/tmp/dsh-chat-grouping-failure.txt', await page.locator('body').innerText())
-    await page.screenshot({ path: '/tmp/dsh-chat-grouping-failure.png', fullPage: true })
+    await writeFile(testPath('dsh-chat-grouping-failure.txt'), await page.locator('body').innerText())
+    await page.screenshot({ path: testPath('dsh-chat-grouping-failure.png'), fullPage: true })
   }
   throw error
 } finally { await browser.close() }

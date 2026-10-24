@@ -1,12 +1,9 @@
-import { createRequire } from 'node:module'
+import { chromium, browserLaunchOptions, testPath, requiredTestEnv } from './browser-test-runtime.mjs'
 import { readFile } from 'node:fs/promises'
 import assert from 'node:assert/strict'
-process.env.PLAYWRIGHT_BROWSERS_PATH ??= new URL('../.upstream/.regular-chat/browsers', import.meta.url).pathname
-const require = createRequire(new URL('../.upstream/apps/web/package.json', import.meta.url))
-const { chromium } = require('playwright')
 const log = await readFile(process.env.DSH_TEST_LOG, 'utf8')
 const url = log.match(/https?:\/\/[^\s\x1b]+[?&]token=[^\s\x1b]+/)[0]
-const browser = await chromium.launch({ headless: true })
+const browser = await chromium.launch(browserLaunchOptions)
 try {
   const page = await browser.newPage({ locale: 'en-US' })
   page.setDefaultTimeout(15000)

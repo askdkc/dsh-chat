@@ -1,16 +1,13 @@
-import { createRequire } from 'node:module'
+import { chromium, browserLaunchOptions, testPath, requiredTestEnv, enableCombinedLisp } from './browser-test-runtime.mjs'
 import { readFile, mkdir, mkdtemp, realpath, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import assert from 'node:assert/strict'
-process.env.PLAYWRIGHT_BROWSERS_PATH ??= new URL('../.upstream/.regular-chat/browsers', import.meta.url).pathname
-const require = createRequire(new URL('../.upstream/apps/web/package.json', import.meta.url))
-const { chromium } = require('playwright')
 const log = await readFile(process.env.DSH_TEST_LOG, 'utf8')
 const url = log.match(/https?:\/\/[^\s\x1b]+[?&]token=[^\s\x1b]+/)[0]
 const root = await mkdtemp(join(process.env.DSH_TEST_HOME, 'picker-fixtures-'))
 await mkdir(join(root, 'visible'), { recursive: true })
 await mkdir(join(root, '.hidden'), { recursive: true })
-const browser = await chromium.launch({ headless: true })
+const browser = await chromium.launch(browserLaunchOptions)
 let page
 try {
   page = await browser.newPage({ locale: 'en-US', viewport: { width: 1100, height: 850 } })
@@ -45,8 +42,19 @@ try {
     await route.fulfill({ json: { type: 'server-response', rpcId: body.rpcId, result: { ok: true, value: nativeValue } } })
   })
   await page.goto(url)
+  await page.getByRole('treeitem', { selected: true }).first().waitFor()
+  await page.waitForFunction(() => {
+    const content = document.querySelector('[data-conversation-content]')
+    return content?.getAttribute('data-conversation-session') && content.getAttribute('data-content-phase') !== 'settling'
+  })
   const chip = page.getByRole('button', { name: 'Choose workspace', exact: true })
   const picker = page.getByRole('dialog', { name: 'Choose workspace', exact: true })
+  const sessionBinding = () => page.locator('[data-conversation-content]').getAttribute('data-conversation-session')
+  const waitForWorkspaceNavigation = previous => page.waitForFunction(previous => {
+    const content = document.querySelector('[data-conversation-content]')
+    const current = content?.getAttribute('data-conversation-session')
+    return current && current !== previous && content.getAttribute('data-content-phase') !== 'settling'
+  }, previous)
   await page.getByRole('button', { name: 'Regular Chat', exact: true }).waitFor()
   await chip.click()
   const selected = picker.getByRole('menuitemradio', { checked: true })
@@ -59,8 +67,11 @@ try {
   assert.equal(await picker.count(), 0)
   assert(await chip.evaluate(element => element === document.activeElement))
   await chip.click()
+  const beforeExistingWorkspace = await sessionBinding()
+  const firstAlreadySelected = await entries.first().getAttribute('aria-checked') === 'true'
   await entries.first().click()
   assert.equal(await picker.count(), 0)
+  if (!firstAlreadySelected) await waitForWorkspaceNavigation(beforeExistingWorkspace)
   await chip.click()
   assert.equal(await picker.getByRole('menuitemradio', { checked: true }).count(), 1)
   await picker.getByRole('button', { name: 'Add workspace', exact: true }).click()
@@ -81,8 +92,10 @@ try {
   await directory.getByRole('button', { name: 'Create folder', exact: true }).click()
   await page.waitForFunction(expected => document.querySelector('dialog input')?.value === expected, join(root, 'new-project'))
   assert((await stat(join(root, 'new-project'))).isDirectory())
+  const beforeCreatedWorkspace = await sessionBinding()
   await directory.getByRole('button', { name: 'Use this directory', exact: true }).click()
   await page.waitForFunction(() => !document.querySelector('dialog[open]'))
+  await waitForWorkspaceNavigation(beforeCreatedWorkspace)
   await chip.click()
   await picker.getByRole('menuitemradio', { name: /new-project/, checked: true }).waitFor()
   await picker.getByRole('button', { name: 'Cancel', exact: true }).click()
@@ -93,9 +106,11 @@ try {
   await page.waitForFunction(() => !document.querySelector('dialog[open]'))
   assert.equal(nativeCalls, 1)
   nativeValue = join(root, 'visible')
+  const beforeNativeWorkspace = await sessionBinding()
   await chip.click(); await picker.getByRole('button', { name: 'Add workspace', exact: true }).click()
   await page.waitForFunction(() => !document.querySelector('dialog[open]'))
   assert.equal(nativeCalls, 2)
+  await waitForWorkspaceNavigation(beforeNativeWorkspace)
   await chip.click()
   await picker.getByRole('menuitemradio', { name: /visible/, checked: true }).waitFor()
   await picker.getByRole('button', { name: 'Cancel', exact: true }).click()
@@ -114,8 +129,10 @@ try {
   assert.notEqual(prepared.value.cwd, await realpath(join(root, 'visible')))
   assert.equal(committed.value.sessionId, prepared.value.sessionId)
   await page.waitForFunction(() => document.querySelector('[data-composer-input]')?.getAttribute('contenteditable') === 'true')
-  await page.locator('[data-composer-input]').fill('Selected workspace isolation test')
-  await page.locator('[data-composer-input]').press('Enter')
+  const editor = page.locator('[data-composer-input]')
+  await enableCombinedLisp(page, editor)
+  await editor.fill('Selected workspace isolation test')
+  await editor.press('Enter')
   await page.getByText('Regular chat integration response.', { exact: true }).waitFor()
   await page.getByRole('button', { name: 'New Regular Chat', exact: true }).waitFor()
   // commit already verified the actual Session cwd and Workspace membership.
@@ -128,8 +145,8 @@ try {
   console.log('Regular Chat with an existing project selected: standard Session cwd, streamed response and fixture file stayed in its dedicated chat Workspace.')
 } catch (error) {
   if (page) {
-    await writeFile('/tmp/dsh-chat-picker-page.txt', await page.locator('body').innerText())
-    await page.screenshot({ path: '/tmp/dsh-chat-picker-failure.png', fullPage: true })
+    await writeFile(testPath('dsh-chat-picker-page.txt'), await page.locator('body').innerText())
+    await page.screenshot({ path: testPath('dsh-chat-picker-failure.png'), fullPage: true })
   }
   throw error
 } finally { await browser.close() }

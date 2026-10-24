@@ -23,7 +23,9 @@ async function crashedOwner() {
     await acquireOwner(await ChatPaths.initialize(process.env.TEST_CHAT_HOME));
     process.send('ready'); setInterval(() => {}, 1000);
   `, resolveDir: resolve('.') }, bundle: true, platform: 'node', format: 'esm', write: false })
-  const child = spawn(process.execPath, ['--input-type=module', '-e', bundle.outputFiles[0]!.text], {
+  const entry = join(home, 'owner-fixture.mjs')
+  await writeFile(entry, bundle.outputFiles[0]!.text)
+  const child = spawn(process.execPath, [entry], {
     env: { ...process.env, TEST_CHAT_HOME: home }, stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
   })
   cleanups.push(() => stop(child))
