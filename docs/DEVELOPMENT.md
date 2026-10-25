@@ -17,7 +17,7 @@ npm run test:http
 npm run test:integration
 ```
 
-The setup resolves the official default branch when it runs and records the actual commit in `dsh-revision-evidence.json`. The commit is evidence of what was tested, not a compatibility allowlist. Do not patch DSH to make the plugin work. The stock-source guard rejects tracked edits and untracked source files, while allowing ignored build artifacts. CI runs the same current-upstream acceptance workflow on pushes, pull requests, manual requests and a daily schedule.
+The setup resolves the official default branch when it runs and records the actual commit in `dsh-revision-evidence.json`. It explicitly sets `origin/HEAD` to that advertised branch after the shallow clone, including when Git omits the symbolic ref for `--branch` clones. The commit is evidence of what was tested, not a compatibility allowlist. Do not patch DSH to make the plugin work. The stock-source guard rejects tracked edits and untracked source files, while allowing ignored build artifacts. CI runs the same current-upstream acceptance workflow on pushes, pull requests, manual requests and a daily schedule.
 
 The stock-source guard checks official origin, clean source and consistency with revision evidence when supplied. By itself it does not prove that an independently prepared checkout is the latest remote HEAD: absent fresh evidence, an older official ancestor can pass. Use `prepare-latest-dsh.mjs` with a fresh target to resolve current upstream, or independently verify and record remote HEAD for a manually prepared checkout.
 

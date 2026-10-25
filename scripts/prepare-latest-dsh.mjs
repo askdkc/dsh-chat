@@ -10,6 +10,9 @@ const advertised = run(['ls-remote', '--symref', repository, 'HEAD'])
 const branch = advertised.match(/^ref: (refs\/heads\/[^\s]+)\s+HEAD$/m)?.[1]
 if (!branch) throw Error('Official default branch was not advertised')
 run(['clone', '--depth', '1', '--branch', branch.slice('refs/heads/'.length), repository, target])
+// An explicit --branch clone may omit origin/HEAD. Bind the advertised
+// default branch for the stock-source guard; Git verifies the remote ref exists.
+run(['remote', 'set-head', 'origin', branch.slice('refs/heads/'.length)], target)
 const revision = run(['rev-parse', 'HEAD'], target)
 const evidence = { repository, branch, revision, resolvedAt: new Date().toISOString() }
 writeFileSync(process.env.DSH_REVISION_EVIDENCE ?? 'dsh-revision-evidence.json', JSON.stringify(evidence, null, 2) + '\n')
