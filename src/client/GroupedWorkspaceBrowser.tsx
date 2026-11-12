@@ -6,7 +6,7 @@ import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { PickerInjected } from './WorkspaceChatPicker.tsx'
 import { WorkspaceChatPicker } from './WorkspaceChatPicker.tsx'
-import { groupId, groupedSnapshot, type ChatGroup } from './grouping.ts'
+import { groupedSnapshot, type ChatGroup } from './grouping.ts'
 import { en, ja, zh, type ChatKey } from './locales.ts'
 import { NativeSidebarSlot, type NativeSidebarSlots } from './NativeSidebarSlots.tsx'
 
@@ -35,9 +35,9 @@ export function GroupedWorkspaceBrowser(props: GroupBrowserProps) {
   const useWorkspaces: WorkspaceBrowserProps['useWorkspaces'] = useCallback(select => select(projected), [projected])
   const dictionary = language.startsWith('ja') ? ja : language.startsWith('zh') ? zh : en
   const tChat = (key: string) => dictionary[key as ChatKey] ?? key
-  const id = group && groupId(group)
   const members = () => raw.items.filter(row => group?.workspaceIds.includes(row.workspaceId))
   const first = () => members()[0]?.workspaceId
+  const id = first()
   const Native = props.NativeBrowser
   const insertSessionBefore = props.insertSessionBefore
   // Newer DSH owns session ordering entirely in the native viewing store.

@@ -1,14 +1,14 @@
-import type { WorkspaceSnapshot, WorkspaceView, WorkspaceId, WorkspaceSource } from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type { WorkspaceSnapshot, WorkspaceView, WorkspaceSource } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { ChatApi } from './rpc.ts'
 
 export type ChatGroup = Awaited<ReturnType<ChatApi['group']>>
-export const groupId = (group: ChatGroup) => `regular-chat-group-${group.scopeKey}` as WorkspaceId
 export function groupedSnapshot(snapshot: WorkspaceSnapshot, group?: ChatGroup): WorkspaceSnapshot {
   if (!group) return snapshot
   const ids = new Set(group.workspaceIds)
   const members = snapshot.items.filter(row => ids.has(row.workspaceId))
   if (!members.length) return snapshot
-  const combined: WorkspaceView = { ...members[0], workspaceId: groupId(group), title: group.title,
+  // Native action requests resolve the row ID against the real Workspace list.
+  const combined: WorkspaceView = { ...members[0], title: group.title,
     sessionIds: [...new Set(members.flatMap(row => row.sessionIds))] }
   let inserted = false
   return { ...snapshot, items: snapshot.items.flatMap(row => {
