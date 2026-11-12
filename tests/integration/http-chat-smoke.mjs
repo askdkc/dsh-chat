@@ -14,6 +14,12 @@ async function rpc(method, payload) {
   const response = await fetch(`${url.origin}/api/${method}`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ type: 'client-request', rpcId: randomUUID(), method, payload }) })
   assert.equal(response.status, 200)
   const { result } = await response.json()
+  if (method === 'regular-chat/commit' && process.env.DSH_TEST_EXPECT_LEGACY_FAILURE === '1') {
+    assert.equal(result.ok, false, 'Published 0.1.9 must fail this same create/commit path')
+    assert.match(JSON.stringify(result), /session-not-ready/)
+    console.log('PASS negative control: published 0.1.9 fails actual create/commit with session-not-ready')
+    process.exit(0)
+  }
   assert.equal(result.ok, true, `${method}: ${JSON.stringify(result)}`)
   return result.value
 }

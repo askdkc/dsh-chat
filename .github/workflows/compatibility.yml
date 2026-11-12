@@ -27,7 +27,16 @@ jobs:
         run: pnpm install --frozen-lockfile && pnpm run build
       - run: npm ci
       - run: npm test && npm run test:contract && npm run build && npm run verify:package
+      - name: Pack the release candidate once
+        run: |
+          npm run pack:release
+          echo "DSH_TEST_TARBALL=$PWD/.test-tmp/release/$(node -p "require('./package.json').version")/askdkc-dsh-chat-$(node -p "require('./package.json').version").tgz" >> "$GITHUB_ENV"
+      - run: npm run test:consumer
       - run: npm run test:http
+      - name: Published 0.1.9 negative control
+        run: |
+          node scripts/fetch-regression-package.mjs
+          DSH_TEST_TARBALL="$PWD/.test-tmp/release-negative-control/dsh-chat-0.1.9.tgz" DSH_TEST_EXPECT_LEGACY_FAILURE=1 npm run test:http
       - name: Install test browser
         working-directory: .upstream
         run: pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps chromium --only-shell
@@ -37,4 +46,7 @@ jobs:
         if: always()
         with:
           name: current-dsh-revision
-          path: dsh-revision-evidence.json
+          include-hidden-files: true
+          path: |
+            dsh-revision-evidence.json
+            .test-tmp/release/

@@ -1,6 +1,6 @@
 {
   "name": "@askdkc/dsh-chat",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": false,
   "publishConfig": {
     "access": "public"
@@ -53,7 +53,11 @@
   "scripts": {
     "typecheck": "node scripts/typecheck.mjs",
     "test": "vitest run",
-    "build": "node scripts/build-host.mjs && node scripts/build-client.mjs",
+    "build": "node scripts/clean-build.mjs && node scripts/build-host.mjs && node scripts/build-client.mjs",
+    "prepack": "node scripts/check-package-artifacts.mjs",
+    "prepublishOnly": "node scripts/check-package-artifacts.mjs",
+    "pack:release": "node scripts/pack-release.mjs",
+    "test:consumer": "node scripts/test-consumer.mjs",
     "verify:package": "node scripts/verify-package.mjs",
     "test:integration": "node scripts/integration.mjs",
     "test:contract": "node scripts/test-observation-native.mjs",

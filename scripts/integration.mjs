@@ -16,11 +16,12 @@ const home = await mkdtemp(join(tmpdir(), 'dsh-regular-chat-integration-'))
 const log = join(home, 'host.log')
 const created = join(home, 'created.json')
 const env = { ...process.env, DSH_HOME: home, DSH_TEST_HOME: home, DSH_TEST_LOG: log, DSH_TEST_CREATED: created, npm_config_workspaces: 'false' }
-// Test archives belong to the disposable profile, never the repository.
-const [packed] = JSON.parse(execFileSync('npm', ['pack', '--pack-destination', home, '--json'], { cwd: root, env, encoding: 'utf8' }))
-assert.equal(packed.name, pkg.name)
-assert.equal(packed.version, pkg.version)
-const tarball = join(home, packed.filename)
+// Every acceptance run consumes the one release candidate; never repack here.
+assert(process.env.DSH_TEST_TARBALL, 'DSH_TEST_TARBALL is required; run npm run pack:release once')
+const tarball = resolve(process.env.DSH_TEST_TARBALL)
+env.npm_config_ignore_scripts = 'true'
+const legacyFailure = process.env.DSH_TEST_EXPECT_LEGACY_FAILURE === '1'
+assert(!legacyFailure || process.argv.includes('--http'), 'Legacy negative control is HTTP-only')
 // Optional escape from a broken Corepack shim; no global tool configuration is changed.
 if (process.env.DSH_PNPM_ENTRY) {
   const bin = join(home, 'bin'); await mkdir(bin)
@@ -37,7 +38,7 @@ const previousPackage = upgradeFrom ?? groupUpgradeFrom
 runCli(['plugin', '--profile', 'web', 'add', previousPackage ? resolve(previousPackage) : tarball])
 if (process.env.DSH_TEST_KIOKUKO_TARBALL) runCli(['plugin', '--profile', 'web', 'add', resolve(process.env.DSH_TEST_KIOKUKO_TARBALL)])
 const profile = join(home, 'profiles/web')
-if (!previousPackage) await verifyInstalledBuild()
+if (!previousPackage && !legacyFailure) await verifyInstalledBuild()
 await build({ entryPoints: [join(root, 'tests/integration/model.ts')], outfile: join(profile, 'regular-chat-test-model.mjs'), bundle: true, platform: 'node', format: 'esm', external: ['@deepseek-ai/*'],
   // The loose test fixture is outside a package. New DSH runtime resolution
   // no longer supplies its undeclared bare imports via profile fallbacks.
@@ -92,8 +93,10 @@ try {
     await start()
     check('tests/integration/auth-smoke.mjs')
     check('tests/integration/http-chat-smoke.mjs')
+    if (!legacyFailure) {
     await stop(); await start()
     check('tests/integration/http-chat-smoke.mjs', 'restart')
+    }
     await stop()
   } else {
   if (groupUpgradeFrom) {

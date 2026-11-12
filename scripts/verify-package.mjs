@@ -5,6 +5,7 @@ import vm from 'node:vm'
 import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 execFileSync(process.execPath, ['scripts/verify-stock-dsh.mjs'], { stdio: 'inherit' })
+execFileSync(process.execPath, ['scripts/check-package-artifacts.mjs'], { stdio: 'inherit' })
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
 const client = readFileSync('lib/client.js', 'utf8')
 let registered
@@ -25,7 +26,7 @@ assert.equal(typeof host.apply, 'function')
 assert.deepEqual(host.inject, ['connection', 'workspaceRegistry', 'sessionQuery'])
 assert.equal(pkg.dsh.bundle.patch, 'cordis.patch.yml')
 assert(pkg.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-conversation'))
-assert(!pkg.scripts.preinstall && !pkg.scripts.install && !pkg.scripts.postinstall)
+assert(!pkg.scripts.prepare && !pkg.scripts.preinstall && !pkg.scripts.install && !pkg.scripts.postinstall)
 for (const dependencies of [pkg.dependencies, pkg.peerDependencies, pkg.devDependencies]) {
   for (const version of Object.values(dependencies ?? {})) assert(!/^(workspace:|file:|link:)/.test(version), `Unresolved dependency ${version}`)
 }
