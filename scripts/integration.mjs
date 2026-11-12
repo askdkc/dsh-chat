@@ -12,8 +12,10 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
 const upstream = resolve(root, process.env.DSH_UPSTREAM ?? '.upstream')
 execFileSync(process.execPath, [join(root, 'scripts/verify-stock-dsh.mjs')], { cwd: root, stdio: 'inherit' })
-const home = await mkdtemp(join(tmpdir(), 'dsh-regular-chat-integration-'))
-const log = join(home, 'host.log')
+const artifacts = process.env.DSH_TEST_ARTIFACTS_DIR ?? tmpdir()
+await mkdir(artifacts, { recursive: true })
+const home = await mkdtemp(join(artifacts, 'dsh-regular-chat-integration-'))
+let log = join(home, 'host.log')
 const created = join(home, 'created.json')
 const env = { ...process.env, DSH_HOME: home, DSH_TEST_HOME: home, DSH_TEST_LOG: log, DSH_TEST_CREATED: created, npm_config_workspaces: 'false' }
 // Every acceptance run consumes the one release candidate; never repack here.
@@ -33,8 +35,10 @@ const cli = ['--import', 'tsx/esm', 'apps/cli/src/bin.ts']
 const runCli = args => execFileSync(process.execPath, [...cli, ...args], { cwd: upstream, env, stdio: 'inherit' })
 const upgradeFrom = process.env.DSH_TEST_UPGRADE_FROM
 const groupUpgradeFrom = process.env.DSH_TEST_GROUP_UPGRADE_FROM
-assert(!(upgradeFrom && groupUpgradeFrom), 'Choose one upgrade scenario per run')
-const previousPackage = upgradeFrom ?? groupUpgradeFrom
+const creationUpgradeFrom = process.env.DSH_TEST_CREATION_UPGRADE_FROM
+assert([upgradeFrom, groupUpgradeFrom, creationUpgradeFrom].filter(Boolean).length <= 1, 'Choose one upgrade scenario per run')
+assert(!creationUpgradeFrom || (process.argv.includes('--http') && !legacyFailure), 'Creation upgrade is a normal HTTP acceptance run')
+const previousPackage = upgradeFrom ?? groupUpgradeFrom ?? creationUpgradeFrom
 runCli(['plugin', '--profile', 'web', 'add', previousPackage ? resolve(previousPackage) : tarball])
 if (process.env.DSH_TEST_KIOKUKO_TARBALL) runCli(['plugin', '--profile', 'web', 'add', resolve(process.env.DSH_TEST_KIOKUKO_TARBALL)])
 const profile = join(home, 'profiles/web')
@@ -56,17 +60,20 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const port = server.address().port
 await new Promise(resolve => server.close(resolve))
 let child
+let starts = 0
 async function start(extra = []) {
+  log = join(home, `host-${++starts}.log`)
+  env.DSH_TEST_LOG = log
   await writeFile(log, '')
   const output = createWriteStream(log, { flags: 'a' })
   child = spawn(process.execPath, [...cli, 'web', '--patch', patch, ...extra, '--no-open', '--port', String(port)], { cwd: upstream, env, stdio: ['ignore', 'pipe', 'pipe'] })
   child.stdout.pipe(output); child.stderr.pipe(output)
   child.once('exit', () => output.end())
   await new Promise((resolve, reject) => {
-    const deadline = setTimeout(() => { cleanup(); reject(Error('Host startup timeout; inspect retained host.log')) }, 30000)
+    const deadline = setTimeout(() => { cleanup(); reject(Error(`Host startup timeout; inspect ${log}`)) }, 30000)
     let buffered = ''
     const onData = bytes => { buffered += bytes.toString(); if (/dsh web: http/.test(buffered)) { cleanup(); resolve() } }
-    const onExit = code => { cleanup(); reject(Error(`Host exited ${code}; inspect retained host.log`)) }
+    const onExit = code => { cleanup(); reject(Error(`Host exited ${code}; inspect ${log}`)) }
     const cleanup = () => { clearTimeout(deadline); child.stdout.off('data', onData); child.stderr.off('data', onData); child.off('exit', onExit) }
     child.stdout.on('data', onData); child.stderr.on('data', onData); child.once('exit', onExit)
   })
@@ -90,9 +97,19 @@ async function verifyInstalledBuild() {
 }
 try {
   if (process.argv.includes('--http')) {
+    if (creationUpgradeFrom) {
+      await start()
+      check('tests/integration/auth-smoke.mjs')
+      env.DSH_TEST_EXPECT_LEGACY_FAILURE = '1'
+      check('tests/integration/http-chat-smoke.mjs')
+      delete env.DSH_TEST_EXPECT_LEGACY_FAILURE
+      await stop()
+      runCli(['plugin', '--profile', 'web', 'add', tarball])
+      await verifyInstalledBuild()
+    }
     await start()
     check('tests/integration/auth-smoke.mjs')
-    check('tests/integration/http-chat-smoke.mjs')
+    check('tests/integration/http-chat-smoke.mjs', ...(creationUpgradeFrom ? ['recover'] : []))
     if (!legacyFailure) {
     await stop(); await start()
     check('tests/integration/http-chat-smoke.mjs', 'restart')

@@ -7,9 +7,12 @@ on:
     - cron: '17 6 * * *'
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   current-dsh:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -26,22 +29,19 @@ jobs:
         working-directory: .upstream
         run: pnpm install --frozen-lockfile && pnpm run build
       - run: npm ci
-      - run: npm test && npm run test:contract && npm run build && npm run verify:package
-      - name: Pack the release candidate once
-        run: |
-          npm run pack:release
-          echo "DSH_TEST_TARBALL=$PWD/.test-tmp/release/$(node -p "require('./package.json').version")/askdkc-dsh-chat-$(node -p "require('./package.json').version").tgz" >> "$GITHUB_ENV"
-      - run: npm run test:consumer
-      - run: npm run test:http
-      - name: Published 0.1.9 negative control
-        run: |
-          node scripts/fetch-regression-package.mjs
-          DSH_TEST_TARBALL="$PWD/.test-tmp/release-negative-control/dsh-chat-0.1.9.tgz" DSH_TEST_EXPECT_LEGACY_FAILURE=1 npm run test:http
       - name: Install test browser
         working-directory: .upstream
-        run: pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps chromium --only-shell
-      - name: Real chat creation, first turn and restart
-        run: npm run test:integration
+        # Retry only dependency setup, never a failed acceptance test.
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps chromium --only-shell; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            sleep "$((attempt * 10))"
+          done
+      - name: Full package, HTTP and browser acceptance
+        run: npm run test:ci
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -49,4 +49,6 @@ jobs:
           include-hidden-files: true
           path: |
             dsh-revision-evidence.json
-            .test-tmp/release/
+            .test-tmp/ci/**/checks.json
+            .test-tmp/ci/**/release/
+            .test-tmp/ci/**/*.png

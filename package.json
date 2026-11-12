@@ -53,6 +53,7 @@
   "scripts": {
     "typecheck": "node scripts/typecheck.mjs",
     "test": "vitest run",
+    "test:ci": "node scripts/test-ci.mjs",
     "build": "node scripts/clean-build.mjs && node scripts/build-host.mjs && node scripts/build-client.mjs",
     "prepack": "node scripts/check-package-artifacts.mjs",
     "prepublishOnly": "node scripts/check-package-artifacts.mjs",

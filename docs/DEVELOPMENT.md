@@ -8,17 +8,15 @@ corepack enable
 corepack prepare "$(node -p "require('./.upstream/package.json').packageManager")" --activate
 (cd .upstream && pnpm install --frozen-lockfile && pnpm run build)
 npm ci
-npm test
-npm run test:contract
-npm run build
-npm run verify:package
-npm run pack:release
-export DSH_TEST_TARBALL="$PWD/.test-tmp/release/$(node -p "require('./package.json').version")/askdkc-dsh-chat-$(node -p "require('./package.json').version").tgz"
-npm run test:consumer
-npm run test:http
 (cd .upstream && pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install chromium --only-shell)
-npm run test:integration
+npm run test:ci
 ```
+
+`test:ci` is the shared local/CI acceptance entry point. It runs unit tests, the native observation contract, build (including host/client typechecking), package verification, packing, clean consumer installation, HTTP acceptance, the published 0.1.9 negative control, recovery of a pending creation after upgrading from 0.1.9, and the complete browser suite. Push only after this command passes on the final changes; `npm test` alone does not exercise the browser rename/delete regression. Upstream and browser installation are prerequisites; Linux CI installs browser system dependencies with `--with-deps`.
+
+Each invocation creates `.test-tmp/ci/run-*/`, records each executed check in `checks.json`, and packs one candidate into its `release/` directory. All normal acceptance checks consume that exact candidate. Repeated invocations preserve previous candidates and results. Inherited candidate, negative-control and upgrade settings are cleared; the legacy-failure flag applies only to the explicit negative-control check. A failed check stops the run immediately without retrying tests. This command creates a verification candidate; the separately authorized release procedure below remains available for publication.
+
+CI uses Ubuntu 24.04 explicitly, cancels superseded runs for the same event/ref, and retries browser dependency installation at most three times. It retains check results, candidate manifests/archives and screenshots even after failure. Test profiles and authentication state are not uploaded. Integration homes and separate `host-N.log` files for each restart remain available locally under the run directory.
 
 The setup resolves the official default branch when it runs and records the actual commit in `dsh-revision-evidence.json`. It explicitly sets `origin/HEAD` to that advertised branch after the shallow clone, including when Git omits the symbolic ref for `--branch` clones. The commit is evidence of what was tested, not a compatibility allowlist. Do not patch DSH to make the plugin work. The stock-source guard rejects tracked edits and untracked source files, while allowing ignored build artifacts. CI runs the same current-upstream acceptance workflow on pushes, pull requests, manual requests and a daily schedule.
 
@@ -31,6 +29,8 @@ The browser acceptance suite verifies new-chat creation and the first streamed r
 For a broken Corepack shim, pass an installed pnpm entry point as `DSH_PNPM_ENTRY`; no global configuration change is required.
 
 ## Upgrade scenarios
+
+`DSH_TEST_CREATION_UPGRADE_FROM=/absolute/path/published-0.1.9.tgz npm run test:http` reproduces the old `session-not-ready` failure, updates that same isolated profile with `DSH_TEST_TARBALL`, retries the original request/session/workspace, and verifies a completed response and restart retention. `test:ci` includes this scenario automatically. A new-install pass alone does not establish recovery for an existing user.
 
 The integration runner consumes `DSH_TEST_TARBALL` without repacking. Supply a previous package tarball stored outside the checkout to exercise recovery from a prior installed version:
 

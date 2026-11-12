@@ -54,11 +54,16 @@ if (process.argv[2] === 'restart') {
   assertCompleted(await history(state.prepared.sessionId))
   console.log('PASS HTTP: restart retains journal identity and actual first-turn response')
 } else {
+  const recovery = process.argv[2] === 'recover' ? JSON.parse(await readFile(statePath, 'utf8')) : undefined
   const info = await rpc('regular-chat/info', {})
-  const intent = { scopeKey: info.scopeKey, requestId: randomUUID(), locale: 'en' }
+  const intent = recovery?.intent ?? { scopeKey: info.scopeKey, requestId: randomUUID(), locale: 'en' }
+  if (recovery) assert.equal((await rpc('regular-chat/status', { scopeKey: intent.scopeKey, requestId: intent.requestId })).record.phase, 'prepared')
   const prepared = await rpc('regular-chat/prepare', intent)
+  if (recovery) assert.deepEqual(prepared, recovery.prepared, 'Upgrade retry must retain the failed request, session and workspace')
   assert.deepEqual(await rpc('regular-chat/prepare', intent), prepared)
   assert.equal((await remote('create', { workspaceId: prepared.workspaceId, sessionId: prepared.sessionId })).sessionId, prepared.sessionId)
+  // Retain the pending identity even when the legacy commit below fails.
+  await writeFile(statePath, JSON.stringify({ intent, prepared }, null, 2))
   assert.equal((await rpc('regular-chat/commit', { requestId: intent.requestId, scopeKey: intent.scopeKey })).sessionId, prepared.sessionId)
   assert.equal((await rpc('regular-chat/commit', { requestId: intent.requestId, scopeKey: intent.scopeKey })).sessionId, prepared.sessionId)
   if (process.env.DSH_TEST_KIOKUKO_TARBALL) {
@@ -84,4 +89,5 @@ if (process.argv[2] === 'restart') {
   assert.notEqual(next.sessionId, prepared.sessionId)
   await writeFile(statePath, JSON.stringify({ intent, prepared, page }, null, 2))
   console.log('PASS HTTP: actual create/commit, idempotent retry, first completed model response, distinct next chat')
+  if (recovery) console.log('PASS upgrade: the published 0.1.9 failed request completes after updating, without replacing its session or workspace')
 }
