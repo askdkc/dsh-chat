@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { Context } from '@deepseek-ai/cordis'
-import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { type SessionId } from '@deepseek-ai/dsh-session'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { ChatService } from '../../src/host/service.ts'
 
@@ -18,6 +20,7 @@ const ctx = new Context()
 let chat: ChatService | undefined
 try {
   await ctx.plugin(SessionStore)
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(Query)
   const rows = new Map<string, any>()
   const services = {
@@ -30,7 +33,7 @@ try {
   chat = await ChatService.create(home, services)
   const intent = { requestId: randomUUID(), scopeKey: chat.scopeKey, locale: 'en' as const }
   const prepared = await chat.prepare(intent)
-  const session = ctx.sessions.create(SessionId(prepared.sessionId), { meta: { cwd: prepared.cwd } })
+  const session = ctx.sessions.create(brandString<SessionId>(prepared.sessionId), { meta: { cwd: prepared.cwd } })
   rows.get(prepared.workspaceId).sessionIds.push(session.id)
   assert.equal((await chat.commit(intent)).committed, true)
   assert.equal((await chat.commit(intent)).sessionId, session.id)
